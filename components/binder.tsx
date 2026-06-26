@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState, useTransition, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import { type Card, type Rarity, RARITY } from "@/lib/cards";
+import { importCollection } from "@/lib/actions";
 import { LazyCard } from "./lazy-card";
 import { CardModal } from "./card-modal";
 import { InsightsStrip } from "./insights-strip";
@@ -23,6 +24,11 @@ const PlusIcon = () => (
 const DownloadIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
     <path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14" />
+  </svg>
+);
+const UploadIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 21V9m0 0 4 4m-4-4-4 4M5 3h14" />
   </svg>
 );
 
@@ -47,6 +53,9 @@ export function Binder({ initialCards }: { initialCards: Card[] }) {
   const [handTrapOnly, setHandTrapOnly] = useState(false);
   const [selected, setSelected] = useState<Card | null>(null);
   const [adding, setAdding] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [importing, startImport] = useTransition();
+  const [importMsg, setImportMsg] = useState("");
 
   const rarities = useMemo(
     () => Array.from(new Set(initialCards.map((c) => c.rarity))).sort((a, b) => RARITY[b].tier - RARITY[a].tier),
@@ -86,6 +95,21 @@ export function Binder({ initialCards }: { initialCards: Card[] }) {
     URL.revokeObjectURL(url);
   }
 
+  function onImportFile(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-selecting the same file
+    if (!file) return;
+    setImportMsg("");
+    startImport(async () => {
+      const res = await importCollection(await file.text());
+      const parts = [`imported ${res.imported}`];
+      if (res.updated) parts.push(`updated ${res.updated}`);
+      if (res.skipped) parts.push(`skipped ${res.skipped}`);
+      setImportMsg(`Import — ${parts.join(" · ")}${res.errors[0] ? `. ${res.errors[0]}` : ""}`);
+      router.refresh();
+    });
+  }
+
   return (
     <>
       <header className="topbar">
@@ -98,6 +122,10 @@ export function Binder({ initialCards }: { initialCards: Card[] }) {
           <SearchIcon />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search your binder…" aria-label="Search your binder" />
         </label>
+        <input ref={fileRef} type="file" accept=".csv,text/csv" hidden onChange={onImportFile} />
+        <button className="btn-ghost" onClick={() => fileRef.current?.click()} disabled={importing} title="Import a collection CSV">
+          <UploadIcon /> {importing ? "Importing…" : "Import"}
+        </button>
         <button className="btn-ghost" onClick={exportCsv} disabled={!initialCards.length} title="Download your collection as CSV">
           <DownloadIcon /> Export
         </button>
@@ -107,6 +135,7 @@ export function Binder({ initialCards }: { initialCards: Card[] }) {
       </header>
 
       <div className="content">
+        {importMsg && <div className="import-note">{importMsg}</div>}
         {initialCards.length > 0 && (
           <>
             <div className="insights-wrap">
