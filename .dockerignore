@@ -1,0 +1,11 @@
+node_modules
+.next
+.git
+.gitignore
+*.md
+prisma/dev.db
+prisma/.cache
+.edgetmp
+.env*
+*.png
+tmp_*.mjs

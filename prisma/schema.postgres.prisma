@@ -1,0 +1,246 @@
+// Production schema — PostgreSQL. Build the Docker image against this
+// (`prisma generate --schema=prisma/schema.postgres.prisma`). Models are
+// identical to the SQLite dev schema; only the datasource differs, so the
+// same application code and seed work unchanged.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url        = env("DATABASE_URL") // pooled (Supabase Supavisor, port 6543) for runtime
+  directUrl  = env("DIRECT_URL")   // direct (port 5432) for migrations / db push
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  username     String   @unique
+  displayName  String?
+  avatarUrl    String?
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  ownedCards       OwnedCard[]
+  sentRequests     FriendRequest[] @relation("sentRequests")
+  receivedRequests FriendRequest[] @relation("receivedRequests")
+  friendshipsA     Friendship[]    @relation("friendshipsA")
+  friendshipsB     Friendship[]    @relation("friendshipsB")
+  tradesProposed   Trade[]         @relation("tradesProposed")
+  tradesReceived   Trade[]         @relation("tradesReceived")
+  invitesCreated   Invite[]        @relation("invitesCreated")
+  wishlist         WishlistItem[]
+  notifications    Notification[]
+  activity         ActivityEvent[]
+  reactions        Reaction[]
+  decks            Deck[]
+}
+
+model Card {
+  id        Int     @id
+  name      String
+  frame     String
+  attribute String?
+  typeLine  String
+  race      String?
+  atk       Int?
+  def       Int?
+  level     Int?
+  desc      String  @default("")
+  archetype String?
+  banTcg    String?
+  banGoat   String?
+  banEdison String?
+  handTrap  Boolean @default(false)
+  tcgDate   String?
+  linkval   Int?
+  isTuner   Boolean @default(false)
+
+  printings CardPrinting[]
+  wishlist  WishlistItem[]
+
+  @@index([name])
+}
+
+model CardPrinting {
+  id       String  @id @default(cuid())
+  cardId   Int
+  card     Card    @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  setName  String
+  setCode  String
+  rarity   String
+  priceUsd Float?
+
+  ownedCards OwnedCard[]
+
+  @@index([cardId])
+  @@index([setCode])
+}
+
+model OwnedCard {
+  id           String       @id @default(cuid())
+  userId       String
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  printingId   String
+  printing     CardPrinting @relation(fields: [printingId], references: [id], onDelete: Cascade)
+  condition    String       @default("NM")
+  quantity     Int          @default(1)
+  forTrade     Boolean      @default(false)
+  scanImageUrl String?
+  notes        String?
+  createdAt    DateTime     @default(now())
+  reactions    Reaction[]
+
+  @@unique([userId, printingId, condition])
+  @@index([userId])
+}
+
+model FriendRequest {
+  id         String   @id @default(cuid())
+  senderId   String
+  sender     User     @relation("sentRequests", fields: [senderId], references: [id], onDelete: Cascade)
+  receiverId String
+  receiver   User     @relation("receivedRequests", fields: [receiverId], references: [id], onDelete: Cascade)
+  status     String   @default("PENDING")
+  createdAt  DateTime @default(now())
+
+  @@unique([senderId, receiverId])
+  @@index([receiverId, status])
+}
+
+model Friendship {
+  id        String   @id @default(cuid())
+  userAId   String
+  userA     User     @relation("friendshipsA", fields: [userAId], references: [id], onDelete: Cascade)
+  userBId   String
+  userB     User     @relation("friendshipsB", fields: [userBId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userAId, userBId])
+}
+
+model Trade {
+  id                String   @id @default(cuid())
+  proposerId        String
+  proposer          User     @relation("tradesProposed", fields: [proposerId], references: [id], onDelete: Cascade)
+  receiverId        String
+  receiver          User     @relation("tradesReceived", fields: [receiverId], references: [id], onDelete: Cascade)
+  status            String   @default("PENDING")
+  proposerConfirmed Boolean  @default(false)
+  receiverConfirmed Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  items    TradeItem[]
+  messages TradeMessage[]
+
+  @@index([proposerId])
+  @@index([receiverId, status])
+}
+
+model TradeItem {
+  id         String  @id @default(cuid())
+  tradeId    String
+  trade      Trade   @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  side       String
+  ownerId    String
+  printingId String
+  cardId     Int
+  cardName   String
+  setName    String
+  setCode    String
+  rarity     String
+  condition  String
+  quantity   Int     @default(1)
+  valueUsd   Float?
+
+  @@index([tradeId])
+}
+
+model Invite {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  createdById String
+  createdBy   User     @relation("invitesCreated", fields: [createdById], references: [id], onDelete: Cascade)
+  usedById    String?
+  createdAt   DateTime @default(now())
+}
+
+model WishlistItem {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cardId    Int
+  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  note      String?
+  priority  Int      @default(2)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, cardId])
+  @@index([userId])
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String
+  body      String
+  href      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt])
+}
+
+model ActivityEvent {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String
+  body      String
+  href      String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model TradeMessage {
+  id        String   @id @default(cuid())
+  tradeId   String
+  trade     Trade    @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  senderId  String
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([tradeId])
+}
+
+model Reaction {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ownedCardId String
+  ownedCard   OwnedCard @relation(fields: [ownedCardId], references: [id], onDelete: Cascade)
+  emoji       String
+  createdAt   DateTime  @default(now())
+
+  @@unique([userId, ownedCardId, emoji])
+  @@index([ownedCardId])
+}
+
+// An AI-built deck saved by a user. Cards stored as JSON (see lib/decks.ts DeckCards).
+model Deck {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  format    String   @default("advanced")
+  strategy  String   @default("")
+  poolMode  String   @default("collection")
+  cards     String   @default("{}")
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}

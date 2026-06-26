@@ -1,0 +1,48 @@
+import type { ReactNode } from "react";
+import { type Card, RARITY, EXODIA_PIECES, money } from "@/lib/cards";
+
+function Stat({ label, value, sub, valueColor }: { label: string; value: string; sub: ReactNode; valueColor?: string }) {
+  return (
+    <div className="stat">
+      <span className="stat__label">{label}</span>
+      <span className="stat__value" style={valueColor ? { color: valueColor } : undefined}>{value}</span>
+      <span className="stat__sub">{sub}</span>
+    </div>
+  );
+}
+
+export function InsightsStrip({ cards }: { cards: Card[] }) {
+  const totalQty = cards.reduce((s, c) => s + c.quantity, 0);
+  const sets = new Set(cards.map((c) => c.setName)).size;
+  const value = cards.reduce((s, c) => s + c.priceUsd * c.quantity, 0);
+  const rarest = cards.length ? [...cards].sort((a, b) => RARITY[b.rarity].tier - RARITY[a.rarity].tier)[0] : null;
+
+  const ownedIds = new Set(cards.map((c) => c.id));
+  const exodiaCount = EXODIA_PIECES.filter((id) => ownedIds.has(id)).length;
+  const exodiaComplete = exodiaCount === EXODIA_PIECES.length;
+
+  return (
+    <div className="insights">
+      <Stat label="Cards" value={String(totalQty)} sub={<>{cards.length} unique</>} />
+      <Stat label="Sets" value={String(sets)} sub={<>across your binder</>} />
+      <Stat label="Est. value" value={money(Math.round(value))} sub={<>market · all copies</>} />
+      <Stat
+        label="Rarest"
+        value={rarest ? RARITY[rarest.rarity].abbr : "—"}
+        valueColor={rarest ? RARITY[rarest.rarity].color : undefined}
+        sub={rarest ? <b>{rarest.name}</b> : <>nothing yet</>}
+      />
+      <div className="stat stat--exodia">
+        <span className="stat__label">Exodia</span>
+        {exodiaComplete ? (
+          <span className="stat__value holo-text">COMPLETE</span>
+        ) : (
+          <span className="stat__value" style={{ color: "var(--muted-2)" }}>{exodiaCount}/5</span>
+        )}
+        <span className={"stat__sub" + (exodiaComplete ? "" : " stat__sub--locked")}>
+          {exodiaComplete ? "all five pieces — you win" : "pieces collected"}
+        </span>
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,15 @@
+/node_modules
+/.next
+/out
+*.tsbuildinfo
+next-env.d.ts
+.env*
+.DS_Store
+/prisma/dev.db
+/prisma/.cache
+/.cache
+/.edgetmp
+.jar.txt
+/certificates
+/.dl
+tmp_*.mjs
