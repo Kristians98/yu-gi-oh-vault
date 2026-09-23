@@ -630,10 +630,13 @@ body {
      sized to exactly what is visible and the document cannot scroll at all. Everything
      inside (.main) scrolls on its own. */
   html:has(.shell) { height: 100%; overflow: hidden; }
-  body:has(.shell) { position: fixed; inset: 0; height: auto; min-height: 0; overflow: hidden; }
-  /* Height: the measured visible viewport (--vvh, from <ViewportHeight>) when available,
-     else the fixed body's own height. Never a CSS viewport unit — iOS gets those wrong here. */
-  .shell { height: 100%; height: var(--vvh, 100%); grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; }
+  /* The body is anchored to the TOP only and given an explicit height: with inset:0 iOS
+     anchors the bottom to the tall toolbar-hidden viewport, hiding the last ~50px behind
+     the toolbar. Height = measured visible viewport (--vvh, set from window.visualViewport
+     by <ViewportHeight>); before that script runs, 100svh (the small viewport, which is
+     what is visible at load while the toolbar is showing). */
+  body:has(.shell) { position: fixed; top: 0; left: 0; right: 0; height: 100svh; height: var(--vvh, 100svh); min-height: 0; overflow: hidden; }
+  .shell { height: 100%; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; }
   .main { min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; }
   .mnav {
     display: flex;
@@ -861,7 +864,7 @@ body:has(.scanpage) { overflow: hidden; }
 .scan__ai { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.04em; color: var(--trade); margin-top: 14px; }
 .scan__ai--off { color: var(--muted-2); }
 @media (max-width: 880px) {
-  .shell:has(.scanpage) { height: 100%; height: var(--vvh, 100%); } /* fixed body / measured; dvh is unreliable on iOS */
+  .shell:has(.scanpage) { height: 100%; } /* the fixed body carries the measured height */
   .shell:has(.scanpage) .topbar { display: none; } /* the stage chip carries the title */
   .mnav__tab { min-width: 0; }
   .mnav__tab span { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
