@@ -25,10 +25,10 @@ export function RarityCard({
   // Grid tiles use the small art (≈6× fewer decoded pixels → far less RAM); the
   // enlarged modal passes `full` for crisp detail.
   const thumb = !full;
-  // Starlight Rare gets a set of independent "glitter flake" layers — see .card__glint in
+  // Starlight, Quarter Century Secret and Secret get a set of independent "glitter flake" layers — see .card__glint in
   // globals.css. Each layer is a sparse grid of flakes lit by its own light spot, so which
   // flakes flash changes with the tilt instead of every star under the cursor lighting up.
-  const glitterField = card.rarity === "STARLIGHT_RARE";
+  const glitterField = card.rarity === "STARLIGHT_RARE" || card.rarity === "QUARTER_CENTURY_SECRET_RARE" || card.rarity === "SECRET_RARE";
 
   const set = (k: string, v: string) => ref.current?.style.setProperty(k, v);
 
@@ -84,7 +84,6 @@ export function RarityCard({
       <div className="card__layer card__holo" />
       <div className="card__layer card__glitter" />
       <div className="card__layer card__glare" />
-      <div className="card__layer card__sparkle" />
       {glitterField && GLINTS.map((g) => <div key={g} className="card__layer card__glint" data-g={g} />)}
       <div className="card__layer card__frame" />
 

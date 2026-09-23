@@ -224,26 +224,23 @@ body {
   z-index: 4;
 }
 
-/* Fine glitter dusting over the whole card (Starlight) / art window (Secret): dense
-   prismatic dots revealed under a broad light spot. Starlight's real sparkle is the flake
-   field below (.card__glint); Secret keeps the lens-star overlay (.card__sparkle). */
+/* Glitter dusting — Starlight + Quarter Century over the whole card, Secret inside the
+   art window. Thresholded fractal noise → truly random specks (no visible grid), one tile
+   stretched over the card so there are no seams. A soft light spot following the tilt
+   reveals only the specks under it. The actual sparkle is the flake field (.card__glint). */
 .card[data-rarity="STARLIGHT_RARE"] .card__glitter,
+.card[data-rarity="QUARTER_CENTURY_SECRET_RARE"] .card__glitter,
 .card[data-rarity="SECRET_RARE"] .card__glitter {
-  background-image:
-    radial-gradient(circle, rgba(255, 255, 255, 0.95) 0.5px, transparent 1.7px),
-    radial-gradient(circle, rgba(170, 225, 255, 0.9) 0.5px, transparent 1.8px),
-    radial-gradient(circle, rgba(255, 190, 245, 0.85) 0.5px, transparent 1.8px);
-  background-size: 5px 5px, 7px 7px, 6px 6px;
-  background-position: 0 0, 2px 3px, 4px 1px; /* fixed — the dots don't slide (no parallax) */
-  mix-blend-mode: color-dodge;
-  /* a soft light spot follows the tilt: only dots under it shine, so they sparkle
-     in and out as the card rotates instead of all being visible at once */
+  background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='560'%20height='560'%3E%3Cfilter%20id='n'%20x='0'%20y='0'%20width='100%25'%20height='100%25'%20color-interpolation-filters='sRGB'%3E%3CfeTurbulence%20type='fractalNoise'%20baseFrequency='.95'%20numOctaves='1'%20seed='11'/%3E%3CfeColorMatrix%20values='0%200%200%200%201%20%200%200%200%200%201%20%200%200%200%200%201%20%2014%200%200%200%20-9.2'/%3E%3C/filter%3E%3Crect%20width='560'%20height='560'%20filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 100% 100%;
+  background-position: 0 0; /* fixed — the specks don't slide (no parallax) */
+  mix-blend-mode: screen;
   -webkit-mask-image: radial-gradient(circle at var(--mx, 50%) var(--my, 50%), #000 0%, rgba(0, 0, 0, 0.4) 26%, transparent 52%);
   mask-image: radial-gradient(circle at var(--mx, 50%) var(--my, 50%), #000 0%, rgba(0, 0, 0, 0.4) 26%, transparent 52%);
-  opacity: calc(0.05 + var(--boost) * 0.22); /* subtle foil texture; the glint overlays lead */
+  opacity: calc(0.1 + var(--boost) * 0.34);
   transition: opacity 0.3s;
 }
-/* Secret Rare: confine the sparkle to the illustration window (like Ghost Rare) but with
+/* Secret Rare: confine the dusting to the illustration window (like Ghost Rare) but with
    HARD edges (no feathering) — the light spot is intersected with a crisp art rectangle. */
 .card[data-rarity="SECRET_RARE"] .card__glitter {
   -webkit-mask-image: radial-gradient(circle at var(--mx, 50%) var(--my, 50%), #000 0%, rgba(0, 0, 0, 0.4) 26%, transparent 52%),
@@ -256,6 +253,7 @@ body {
   mask-composite: intersect;
 }
 .card[data-rarity="STARLIGHT_RARE"] .card__holo,
+.card[data-rarity="QUARTER_CENTURY_SECRET_RARE"] .card__holo,
 .card[data-rarity="SECRET_RARE"] .card__holo { filter: saturate(1.8) contrast(1.08); }
 /* Secret Rare: keep the rainbow holo on the same art window as the foil (hard edges). */
 .card[data-rarity="SECRET_RARE"] .card__holo {
@@ -266,39 +264,7 @@ body {
   -webkit-mask-composite: source-in;
   mask-composite: intersect;
 }
-/* Secret Rare: sparse bright star-points whose visibility is driven by CURSOR / TILT POSITION, not a
-   timer. A soft light-spot at --mx/--my reveals the stars near it: move the pointer (or
-   tilt) and different stars light up, fading gradually at the spot's soft edge. The whole
-   overlay only appears while the card is engaged (hover/tilt raises --boost) and holds
-   dead-steady when you stop — no blinking. */
-.card[data-rarity="SECRET_RARE"] .card__sparkle {
-  /* each glint is a 4-point lens-star (SVG sprite); the drop-shadow pair adds a subtle
-     red/cyan chromatic-aberration fringe, like a highlight split through a lens */
-  --star: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='90'%20height='90'%20viewBox='0%200%2090%2090'%3E%3Cpath%20d='M45,31Q45,45,59,45Q45,45,45,59Q45,45,31,45Q45,45,45,31Z'%20fill='%23fff'/%3E%3Ccircle%20cx='45'%20cy='45'%20r='2.6'%20fill='%23fff'/%3E%3C/svg%3E");
-  background-image: var(--star), var(--star), var(--star);
-  background-size: 84px 90px, 108px 76px, 70px 116px; /* three incommensurate grids → scattered glints */
-  background-position: 16px 20px, 58px 10px, 32px 66px;
-  filter: drop-shadow(1.5px 1px 0 rgba(255, 40, 95, 0.95)) drop-shadow(-1.5px -1px 0 rgba(40, 190, 255, 0.95));
-  mix-blend-mode: screen;
-  z-index: 5;
-  -webkit-mask-image: radial-gradient(circle at var(--mx, 50%) var(--my, 50%), #000 0%, rgba(0, 0, 0, 0.5) 22%, transparent 42%);
-  mask-image: radial-gradient(circle at var(--mx, 50%) var(--my, 50%), #000 0%, rgba(0, 0, 0, 0.5) 22%, transparent 42%);
-  opacity: calc((var(--boost) - 0.88) * 2.6); /* fades in on hover/tilt, 0 at rest */
-  transition: opacity 0.3s ease;
-}
-/* Secret also clips the stars to the art window (intersect the light spot with the rect). */
-.card[data-rarity="SECRET_RARE"] .card__sparkle {
-  -webkit-mask-image: radial-gradient(circle at var(--mx, 50%) var(--my, 50%), #000 0%, rgba(0, 0, 0, 0.5) 22%, transparent 42%),
-    linear-gradient(to bottom, transparent 18%, #000 18%, #000 72%, transparent 72%),
-    linear-gradient(to right, transparent 9%, #000 9%, #000 91%, transparent 91%);
-  mask-image: radial-gradient(circle at var(--mx, 50%) var(--my, 50%), #000 0%, rgba(0, 0, 0, 0.5) 22%, transparent 42%),
-    linear-gradient(to bottom, transparent 18%, #000 18%, #000 72%, transparent 72%),
-    linear-gradient(to right, transparent 9%, #000 9%, #000 91%, transparent 91%);
-  -webkit-mask-composite: source-in;
-  mask-composite: intersect;
-}
-
-/* Starlight (Alternate) Rare — a GLITTER field, not a starfield. Real glitter is thousands
+/* Starlight, Quarter Century Secret and Secret Rare — a GLITTER field, not a starfield. Real glitter is thousands
    of tiny mirrors at random angles: at any given tilt only the flakes whose angle happens
    to line up with the light flash, and a flake that lines up perfectly blooms into a lens
    star far larger than the flake itself. Six independent flake layers (.card__glint)
@@ -309,18 +275,8 @@ body {
    than its core, so the steep spot mask reveals the core first and the arms only near
    perfect alignment: a flake visibly swells into a star as it comes in and shrinks back
    out. Red/cyan fringes are baked into the sprite; hue-rotate per layer makes the flakes
-   flash prismatic. Everything is driven by pointer/tilt position, never a timer. */
-.card[data-rarity="STARLIGHT_RARE"] .card__sparkle { display: none; }
-.card[data-rarity="STARLIGHT_RARE"] .card__glitter {
-  /* the dusting the flakes sit in: thresholded fractal noise → truly random specks
-     (no visible grid), lit under the broad light spot inherited from the rule above.
-     One tile stretched over the whole card, so there are no seams. */
-  background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='560'%20height='560'%3E%3Cfilter%20id='n'%20x='0'%20y='0'%20width='100%25'%20height='100%25'%20color-interpolation-filters='sRGB'%3E%3CfeTurbulence%20type='fractalNoise'%20baseFrequency='.95'%20numOctaves='1'%20seed='11'/%3E%3CfeColorMatrix%20values='0%200%200%200%201%20%200%200%200%200%201%20%200%200%200%200%201%20%2014%200%200%200%20-9.2'/%3E%3C/filter%3E%3Crect%20width='560'%20height='560'%20filter='url(%23n)'/%3E%3C/svg%3E");
-  background-size: 100% 100%;
-  background-position: 0 0;
-  mix-blend-mode: screen;
-  opacity: calc(0.1 + var(--boost) * 0.34);
-}
+   flash prismatic. Everything is driven by pointer/tilt position, never a timer.
+   Secret Rare runs the same field clipped to the art window (hard edges, like its holo). */
 .card__glint {
   --flake-a: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='120'%20height='120'%20viewBox='0%200%20120%20120'%3E%3Cdefs%3E%3CradialGradient%20id='g'%3E%3Cstop%20offset='0'%20stop-color='%23fff'%20stop-opacity='.95'/%3E%3Cstop%20offset='.3'%20stop-color='%23fff'%20stop-opacity='.28'/%3E%3Cstop%20offset='1'%20stop-color='%23fff'%20stop-opacity='0'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle%20cx='60'%20cy='60'%20r='15'%20fill='url(%23g)'/%3E%3Cpath%20d='M60,8%20L65,55%20L112,60%20L65,65%20L60,112%20L55,65%20L8,60%20L55,55%20Z'%20fill='%23fff'%20opacity='.1'/%3E%3Cpath%20d='M60,8%20L61.8,58.2%20L112,60%20L61.8,61.8%20L60,112%20L58.2,61.8%20L8,60%20L58.2,58.2%20Z'%20fill='%23ff2a60'%20opacity='.45'%20transform='translate(1.6%201)'/%3E%3Cpath%20d='M60,8%20L61.8,58.2%20L112,60%20L61.8,61.8%20L60,112%20L58.2,61.8%20L8,60%20L58.2,58.2%20Z'%20fill='%232ac2ff'%20opacity='.45'%20transform='translate(-1.6%20-1)'/%3E%3Cpath%20d='M60,8%20L61.8,58.2%20L112,60%20L61.8,61.8%20L60,112%20L58.2,61.8%20L8,60%20L58.2,58.2%20Z'%20fill='%23fff'%20opacity='.42'/%3E%3Cpath%20d='M60,30%20L62.2,57.8%20L90,60%20L62.2,62.2%20L60,90%20L57.8,62.2%20L30,60%20L57.8,57.8%20Z'%20fill='%23fff'%20opacity='.95'/%3E%3Ccircle%20cx='60'%20cy='60'%20r='5'%20fill='%23fff'%20opacity='.55'/%3E%3Ccircle%20cx='60'%20cy='60'%20r='2.6'%20fill='%23fff'/%3E%3C/svg%3E");
   --flake-c: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='240'%20height='240'%20viewBox='0%200%20240%20240'%3E%3Cdefs%3E%3CradialGradient%20id='g'%3E%3Cstop%20offset='0'%20stop-color='%23fff'%20stop-opacity='.9'/%3E%3Cstop%20offset='1'%20stop-color='%23fff'%20stop-opacity='0'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle%20cx='38'%20cy='52'%20r='4.8'%20fill='url(%23g)'/%3E%3Cpath%20d='M38,37%20L39.65,50.35%20L53,52%20L39.65,53.65%20L38,67%20L36.35,53.65%20L23,52%20L36.35,50.35%20Z'%20fill='%23fff'%20opacity='.92'/%3E%3Ccircle%20cx='38'%20cy='52'%20r='1.5'%20fill='%23fff'/%3E%3Ccircle%20cx='171'%20cy='29'%20r='3.5'%20fill='url(%23g)'/%3E%3Cpath%20d='M171,18%20L172.21,27.79%20L182,29%20L172.21,30.21%20L171,40%20L169.79,30.21%20L160,29%20L169.79,27.79%20Z'%20fill='%23fff'%20opacity='.92'%20transform='rotate(30%20171%2029)'/%3E%3Ccircle%20cx='171'%20cy='29'%20r='1.5'%20fill='%23fff'/%3E%3Ccircle%20cx='104'%20cy='118'%20r='5.8'%20fill='url(%23g)'/%3E%3Cpath%20d='M104,100%20L105.98,116.02%20L122,118%20L105.98,119.98%20L104,136%20L102.02,119.98%20L86,118%20L102.02,116.02%20Z'%20fill='%23fff'%20opacity='.92'/%3E%3Ccircle%20cx='104'%20cy='118'%20r='1.5'%20fill='%23fff'/%3E%3Ccircle%20cx='213'%20cy='150'%20r='2.9'%20fill='url(%23g)'/%3E%3Cpath%20d='M213,141%20L213.99,149.01%20L222,150%20L213.99,150.99%20L213,159%20L212.01,150.99%20L204,150%20L212.01,149.01%20Z'%20fill='%23fff'%20opacity='.92'%20transform='rotate(45%20213%20150)'/%3E%3Ccircle%20cx='213'%20cy='150'%20r='1.5'%20fill='%23fff'/%3E%3Ccircle%20cx='62'%20cy='201'%20r='4.2'%20fill='url(%23g)'/%3E%3Cpath%20d='M62,188%20L63.43,199.57%20L75,201%20L63.43,202.43%20L62,214%20L60.57,202.43%20L49,201%20L60.57,199.57%20Z'%20fill='%23fff'%20opacity='.92'%20transform='rotate(20%2062%20201)'/%3E%3Ccircle%20cx='62'%20cy='201'%20r='1.5'%20fill='%23fff'/%3E%3Ccircle%20cx='150'%20cy='214'%20r='5.1'%20fill='url(%23g)'/%3E%3Cpath%20d='M150,198%20L151.76,212.24%20L166,214%20L151.76,215.76%20L150,230%20L148.24,215.76%20L134,214%20L148.24,212.24%20Z'%20fill='%23fff'%20opacity='.92'/%3E%3Ccircle%20cx='150'%20cy='214'%20r='1.5'%20fill='%23fff'/%3E%3Ccircle%20cx='20'%20cy='140'%20r='2.6'%20fill='url(%23g)'/%3E%3Cpath%20d='M20,132%20L20.9,139.1%20L28,140%20L20.9,140.9%20L20,148%20L19.1,140.9%20L12,140%20L19.1,139.1%20Z'%20fill='%23fff'%20opacity='.92'/%3E%3Ccircle%20cx='20'%20cy='140'%20r='1.5'%20fill='%23fff'/%3E%3Ccircle%20cx='120'%20cy='20'%20r='2.2'%20fill='url(%23g)'/%3E%3Cpath%20d='M120,13%20L120.9,19.1%20L127,20%20L120.9,20.9%20L120,27%20L119.1,20.9%20L113,20%20L119.1,19.1%20Z'%20fill='%23fff'%20opacity='.92'%20transform='rotate(60%20120%2020)'/%3E%3Ccircle%20cx='120'%20cy='20'%20r='1.5'%20fill='%23fff'/%3E%3Ccircle%20cx='190'%20cy='92'%20r='3.8'%20fill='url(%23g)'/%3E%3Cpath%20d='M190,80%20L191.32,90.68%20L202,92%20L191.32,93.32%20L190,104%20L188.68,93.32%20L178,92%20L188.68,90.68%20Z'%20fill='%23fff'%20opacity='.92'/%3E%3Ccircle%20cx='190'%20cy='92'%20r='1.5'%20fill='%23fff'/%3E%3Ccircle%20cx='85'%20cy='80'%20r='1.6'%20fill='%23fff'%20opacity='.9'/%3E%3Ccircle%20cx='140'%20cy='160'%20r='1.3'%20fill='%23fff'%20opacity='.9'/%3E%3Ccircle%20cx='230'%20cy='60'%20r='1.5'%20fill='%23fff'%20opacity='.9'/%3E%3Ccircle%20cx='15'%20cy='220'%20r='1.4'%20fill='%23fff'%20opacity='.9'/%3E%3Ccircle%20cx='110'%20cy='170'%20r='1.2'%20fill='%23fff'%20opacity='.9'/%3E%3Ccircle%20cx='60'%20cy='120'%20r='1.1'%20fill='%23fff'%20opacity='.9'/%3E%3Ccircle%20cx='200'%20cy='200'%20r='1.3'%20fill='%23fff'%20opacity='.9'/%3E%3Ccircle%20cx='30'%20cy='10'%20r='1.2'%20fill='%23fff'%20opacity='.9'/%3E%3Ccircle%20cx='165'%20cy='120'%20r='1.6'%20fill='%23fff'%20opacity='.9'/%3E%3Ccircle%20cx='95'%20cy='235'%20r='1.2'%20fill='%23fff'%20opacity='.9'/%3E%3C/svg%3E"); /* cluster tile: nine small flakes + specks, irregularly placed */
@@ -336,10 +292,21 @@ body {
   z-index: 5;
   /* --sr: the spot's radii, sized to roughly one bloom so a flake lights up whole (core
      first, then arms) rather than the spot's rim catching stray arms of its neighbours. */
-  -webkit-mask-image: radial-gradient(var(--sr) at var(--cx) var(--cy), #000 0%, #000 22%, rgba(0, 0, 0, 0.3) 55%, transparent 100%);
-  mask-image: radial-gradient(var(--sr) at var(--cx) var(--cy), #000 0%, #000 22%, rgba(0, 0, 0, 0.3) 55%, transparent 100%);
+  --spot: radial-gradient(var(--sr) at var(--cx) var(--cy), #000 0%, #000 22%, rgba(0, 0, 0, 0.3) 55%, transparent 100%);
+  -webkit-mask-image: var(--spot);
+  mask-image: var(--spot);
   opacity: calc(0.2 + (var(--boost) - 0.88) * 2.2); /* a few resting glints; full on hover/tilt */
   transition: opacity 0.3s ease;
+}
+.card[data-rarity="SECRET_RARE"] .card__glint {
+  -webkit-mask-image: var(--spot),
+    linear-gradient(to bottom, transparent 18%, #000 18%, #000 72%, transparent 72%),
+    linear-gradient(to right, transparent 9%, #000 9%, #000 91%, transparent 91%);
+  mask-image: var(--spot),
+    linear-gradient(to bottom, transparent 18%, #000 18%, #000 72%, transparent 72%),
+    linear-gradient(to right, transparent 9%, #000 9%, #000 91%, transparent 91%);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
 }
 /* Six flake families: three fine (cluster tiles of small irregular flakes → the glitter
    body) and three coarse (one big flake per tile → the occasional full bloom).
