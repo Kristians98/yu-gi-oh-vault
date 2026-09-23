@@ -805,7 +805,12 @@ body {
      so the header stays visible and the modal never sits over it. Top-aligned + its own
      scroll for tall content; overscroll-behavior stops that scroll chaining into the
      binder behind it. */
-  .modal-backdrop { position: absolute; inset: 0; top: var(--header-h, 57px); flex-direction: column; align-items: center; justify-content: flex-start; overflow-y: auto; overscroll-behavior: contain; padding: 10px 16px calc(28px + env(safe-area-inset-bottom)); }
+  .modal-backdrop { position: absolute; inset: 0; top: var(--header-h, 57px); flex-direction: column; align-items: center; justify-content: flex-start; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; touch-action: pan-y; padding: 10px 16px calc(28px + env(safe-area-inset-bottom)); }
+  /* vertical panning only: iOS lets a two-axis scroller drift sideways/diagonally even
+     when nothing overflows horizontally, and the card's tilt tracking must not hijack a
+     scroll gesture */
+  .modal, .modal__panel { touch-action: pan-y; }
+  .modal__cardwrap .card { touch-action: pan-y; }
   /* close button: top-right, stays put while the modal content scrolls */
   .modal__close { position: sticky; top: 0; align-self: flex-end; margin: 0 -6px -30px 0; z-index: 2; width: 36px; height: 36px; }
   /* freeze the binder's scroller while a modal is open (body overflow does nothing here) */

@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 
-/** Publishes the visible viewport height as --vvh on <html>. window.visualViewport is the
- *  one value iOS Safari keeps honest (it tracks the toolbar and the keyboard), so the app
+/** Publishes the visible viewport height as --vvh (and the header height as --header-h)
+ *  on <html>. window.visualViewport is the one value iOS Safari keeps honest, so the app
  *  shell sizes itself from it instead of CSS viewport units.
  *  Add ?debug=1 to the URL to show the live layout numbers (for diagnosing a device). */
 export function ViewportHeight() {
@@ -11,8 +11,19 @@ export function ViewportHeight() {
   useEffect(() => {
     const vv = window.visualViewport;
     const wantDebug = location.search.includes("debug=1");
+    let stable = 0; // last height measured with the keyboard closed
+    const editing = () => {
+      const el = document.activeElement as HTMLElement | null;
+      return !!el && (/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable);
+    };
     const apply = () => {
-      const h = Math.round(vv?.height ?? window.innerHeight);
+      let h = Math.round(vv?.height ?? window.innerHeight);
+      // The on-screen keyboard shrinks the visual viewport. Reflowing the whole shell to
+      // that height makes the camera stage collapse and the tab bar jump above the
+      // keyboard, so while a field is focused we keep the last full height and let iOS pan
+      // the page to the input instead. The keyboard closing fires resize → re-measure.
+      if (editing() && stable && h < stable - 80) h = stable;
+      else if (h > 0) stable = h;
       if (h > 0) document.documentElement.style.setProperty("--vvh", `${h}px`);
       const header = document.querySelector(".sidebar")?.getBoundingClientRect().height;
       if (header) document.documentElement.style.setProperty("--header-h", `${Math.round(header)}px`);
@@ -23,24 +34,27 @@ export function ViewportHeight() {
           const b = el.getBoundingClientRect();
           return `${Math.round(b.top)}→${Math.round(b.bottom)}`;
         };
+        const os = navigator.userAgent.match(/OS (\d+_\d+)/)?.[0]?.replace("_", ".") ?? navigator.userAgent.slice(0, 40);
         setDebug(
           [
-            `vv.h ${vv ? Math.round(vv.height) : "n/a"} · inner ${window.innerHeight} · screen ${screen.height}`,
+            `vv.h ${vv ? Math.round(vv.height) : "n/a"} · inner ${window.innerHeight} · screen ${screen.height}${editing() ? " · kbd" : ""}`,
             `body ${r("body")} · shell ${r(".shell")}`,
             `header ${r(".sidebar")} · mnav ${r(".mnav")}`,
             `--vvh ${getComputedStyle(document.documentElement).getPropertyValue("--vvh") || "unset"} · scrollY ${Math.round(window.scrollY)}`,
-            navigator.userAgent.match(/OS (\d+_\d+)/)?.[0]?.replace("_", ".") ?? navigator.userAgent.slice(0, 40),
+            os,
           ].join("\n"),
         );
       }
     };
     apply();
     const t = window.setTimeout(apply, 600); // after fonts/layout settle
+    const onBlur = () => window.setTimeout(apply, 350); // after the keyboard has closed
     vv?.addEventListener("resize", apply);
     vv?.addEventListener("scroll", apply);
     window.addEventListener("resize", apply);
     window.addEventListener("orientationchange", apply);
     window.addEventListener("scroll", apply);
+    document.addEventListener("focusout", onBlur);
     return () => {
       window.clearTimeout(t);
       vv?.removeEventListener("resize", apply);
@@ -48,6 +62,7 @@ export function ViewportHeight() {
       window.removeEventListener("resize", apply);
       window.removeEventListener("orientationchange", apply);
       window.removeEventListener("scroll", apply);
+      document.removeEventListener("focusout", onBlur);
     };
   }, []);
   if (!debug) return null;
