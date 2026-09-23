@@ -28,6 +28,7 @@ export type CandidateCard = {
   level?: number | null;
   atk?: number | null;
   def?: number | null;
+  setCodes?: string[]; // codes of this card's known printings (e.g. BLGG-EN046)
 };
 
 /** Lower-case, strip punctuation/diacritics/spaces → comparable key. */
@@ -65,7 +66,7 @@ export function similarity(a: string, b: string): number {
 
 const norm = (s?: string | null) => (s || "").toLowerCase().replace(/[^a-z]/g, "");
 
-export type Scored<T> = { card: T; score: number; nameSim: number; reasons: string[] };
+export type Scored<T> = { card: T; score: number; nameSim: number; codeMatches: number; reasons: string[] };
 
 /** Score one candidate against the guess. ~0..100; name dominates. */
 export function scoreCandidate<T extends CandidateCard>(guess: ScanGuess, card: T): Scored<T> {
@@ -109,11 +110,21 @@ export function scoreCandidate<T extends CandidateCard>(guess: ScanGuess, card: 
     if (guess.def === card.def) score += 5;
     else score -= 3;
   }
+  // Printed identifiers. Either one pins the card even when the printed name is not the
+  // name our DB knows (YGOPRODeck can lag behind a TCG rename), so they count as hard
+  // evidence — yet a clearly read name (~60 + frame 12) still outweighs one misread code.
+  let codeMatches = 0;
   if (guess.passcode != null && guess.passcode === card.id) {
-    score += 25;
+    score += 35;
+    codeMatches++;
     reasons.push("passcode matches");
   }
-  return { card, score, nameSim, reasons };
+  if (guess.setCode && card.setCodes?.some((c) => c.toUpperCase() === guess.setCode!.toUpperCase())) {
+    score += 35; // set codes are unique per printing and printed larger than the passcode
+    codeMatches++;
+    reasons.push("set code matches");
+  }
+  return { card, score, nameSim, codeMatches, reasons };
 }
 
 export type Resolution<T> = { best: Scored<T> | null; confident: boolean; ranked: Scored<T>[] };
@@ -128,8 +139,9 @@ export function rankCandidates<T extends CandidateCard>(guess: ScanGuess, cards:
   const best = ranked[0] ?? null;
   const second = ranked[1];
   const margin = best ? best.score - (second?.score ?? -Infinity) : 0;
-  // Strong name (or name + passcode agreement) and nothing close behind it.
-  const confident = !!best && best.score >= 55 && best.nameSim >= 0.75 && margin >= 10;
+  // Confident when nothing is close behind AND either the name clearly matches, or a
+  // printed code matches and the visible details (frame/attribute/…) did not contradict.
+  const confident = !!best && margin >= 10 && ((best.score >= 55 && best.nameSim >= 0.75) || (best.codeMatches >= 1 && best.score >= 45));
   return { best, confident, ranked };
 }
 

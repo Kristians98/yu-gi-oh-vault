@@ -38,6 +38,22 @@ describe("scoreCandidate", () => {
   });
 });
 
+describe("printed codes", () => {
+  it("picks a card by set code + passcode when the printed name is unknown to the DB", () => {
+    // TCG rename not yet in YGOPRODeck: name reads as something we do not have.
+    const bj = { id: 95506252, name: "Black Jack the Shadow-Armored Knight", frame: "effect", attribute: "DARK", race: "Warrior", level: 4, atk: 1800, def: 1200, setCodes: ["BLGG-EN046"] };
+    const guess = { name: "Shadowreaver Knight 21", nameConfidence: 0.9, frame: "effect", attribute: "DARK", setCode: "BLGG-EN046", passcode: 95506252 };
+    const r = rankCandidates(guess, [bj, RED_EYES]);
+    expect(r.best!.card.id).toBe(bj.id);
+    expect(r.confident).toBe(true);
+    expect(r.best!.reasons).toContain("set code matches");
+  });
+  it("a lone misread passcode against a clear name still yields the named card", () => {
+    const r = rankCandidates({ name: "Red-Eyes Black Dragon", nameConfidence: 0.95, frame: "normal", passcode: 55144522 }, [POT, RED_EYES]);
+    expect(r.best!.card.id).toBe(RED_EYES.id);
+  });
+});
+
 describe("rankCandidates confidence", () => {
   it("is confident on a clean read with a clear margin", () => {
     const guess = { name: "Pot of Greed", frame: "spell", nameConfidence: 0.95 };

@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 // sync needs far less: the YGOPRODeck pull is CDN-cached (~1 s) and the diff is in-memory.
 export const maxDuration = 60;
 
-// Weekly: pull newly released cards and reprints from YGOPRODeck (see prisma/card-sync.mjs).
+// Daily: pull newly released cards and reprints from YGOPRODeck (see prisma/card-sync.mjs).
 // Full sync by default; `?since=YYYY-MM-DD` limits it to TCG releases since that date.
 export async function GET(req: Request) {
   if (!cronAuthed(req)) return new Response("forbidden", { status: 403 });

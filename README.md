@@ -77,7 +77,7 @@ or hit the cron route, gated by the `x-cron-secret` header (`CRON_SECRET` in `.e
 curl -H "x-cron-secret: $CRON_SECRET" http://localhost:3000/api/cron/sync-cards
 ```
 
-`vercel.json` schedules it weekly (Monday 06:00 UTC). New rarity names YGOPRODeck may
+`vercel.json` schedules it daily (06:00 UTC). Between runs, a scan or typed search that finds nothing locally looks the name up on YGOPRODeck and imports the card on the spot (`lib/card-import.ts`). New rarity names YGOPRODeck may
 introduce are folded onto the UI's rarity set in `prisma/card-normalize.mjs`.
 
 ## Google sign-in

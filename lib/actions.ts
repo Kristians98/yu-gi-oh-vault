@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { containsCI } from "@/lib/db-text";
+import { importCardsByName } from "@/lib/card-import";
 import { logActivity } from "@/lib/notify";
 
 async function requireUser(): Promise<string> {
@@ -15,12 +16,10 @@ async function requireUser(): Promise<string> {
 export async function searchCards(q: string) {
   const needle = (q || "").trim();
   if (needle.length < 2) return [];
-  const cards = await prisma.card.findMany({
-    where: { name: containsCI(needle) },
-    take: 16,
-    orderBy: { name: "asc" },
-    include: { printings: { orderBy: [{ setCode: "asc" }] } },
-  });
+  const query = { where: { name: containsCI(needle) }, take: 16, orderBy: { name: "asc" as const }, include: { printings: { orderBy: [{ setCode: "asc" as const }] } } };
+  let cards = await prisma.card.findMany(query);
+  // No local hit for a real-looking name → it may be newer than the last sync: import live.
+  if (cards.length === 0 && needle.length >= 4 && (await importCardsByName(needle)).length) cards = await prisma.card.findMany(query);
   return cards.map((c) => ({
     id: c.id,
     name: c.name,

@@ -2,10 +2,11 @@
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
-import { aiConfigured, identifyCardFromImage } from "@/lib/azure-vision";
+import { aiConfigured, identifyCardFromImage, readCodesFromImage } from "@/lib/azure-vision";
 import { rateLimit } from "@/lib/rate-limit";
 import { containsCI } from "@/lib/db-text";
 import { rankCandidates, searchTokens, type ScanGuess } from "@/lib/fuzzy";
+import { importCardsByName } from "@/lib/card-import";
 
 type DbCard = {
   id: number;
@@ -90,6 +91,13 @@ export async function resolveScan(guess: ScanGuess): Promise<ScanResolution> {
     if (tokens[0]?.length >= 4) queries.push(q({ name: { startsWith: tokens[0] } }, 40));
     (await Promise.all(queries)).forEach(add);
     if (pool.size < 5 && tokens.length) add(await q({ OR: tokens.map((t) => ({ name: containsCI(t) })) }, 150));
+    // Nothing plausible locally → the card may be newer than the last sync. Ask YGOPRODeck
+    // by name, import what is missing, and re-query.
+    const plausible = [...pool.values()].some((c) => rankCandidates(guess, [c]).best!.nameSim >= 0.6);
+    if (!plausible) {
+      const imported = await importCardsByName(guess.name);
+      if (imported.length) add(await q({ id: { in: imported } }, 40));
+    }
   }
   if (guess.passcode) {
     const c = await prisma.card.findUnique({ where: { id: guess.passcode }, include: withPrintings });
@@ -104,7 +112,8 @@ export async function resolveScan(guess: ScanGuess): Promise<ScanResolution> {
     }
   }
 
-  const { best, confident, ranked } = rankCandidates(guess, [...pool.values()]);
+  const candidates = [...pool.values()].map((c) => ({ ...c, setCodes: c.printings.map((p) => p.setCode) }));
+  const { best, confident, ranked } = rankCandidates(guess, candidates);
   const choices = ranked
     .filter((r) => r.score > 15)
     .slice(0, 5)
@@ -112,6 +121,16 @@ export async function resolveScan(guess: ScanGuess): Promise<ScanResolution> {
   const bestCard = best && confident ? shape(best.card) : null;
   const printingId = bestCard && setPrinting && setPrinting.cardId === bestCard.id ? setPrinting.id : null;
   return { best: bestCard, printingId, choices, confident };
+}
+
+/** Second pass: read ONLY the passcode + set code from a close crop of the card's bottom
+ *  strip. Used when the first read had no usable code and the name matched nothing. */
+export async function aiReadCodes(dataUrl: string): Promise<{ passcode?: number; setCode?: string } | null> {
+  const s = await auth();
+  if (!s?.user?.id) return null;
+  if (!rateLimit(`scan:min:${s.user.id}`, 20, 60_000)) return null;
+  if (!rateLimit(`scan:day:${s.user.id}`, 300, 86_400_000)) return null;
+  return readCodesFromImage(dataUrl);
 }
 
 export async function aiScanEnabled() {

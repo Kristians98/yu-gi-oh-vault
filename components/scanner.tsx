@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { RARITY, type Rarity, type Condition, artUrl } from "@/lib/cards";
 import { addToCollection, searchCards } from "@/lib/actions";
-import { aiIdentify, identifyByPasscode, resolveScan, type ScanCard, type ScanResolution } from "@/lib/scan";
+import { aiIdentify, aiReadCodes, identifyByPasscode, resolveScan, type ScanCard, type ScanResolution } from "@/lib/scan";
 import type { ScanGuess } from "@/lib/fuzzy";
 
 const CONDITIONS: Condition[] = ["NM", "LP", "MP", "HP", "DMG"];
@@ -114,8 +114,9 @@ export function Scanner({ aiEnabled }: { aiEnabled: boolean }) {
     setSheet(true);
   }
 
-  /** Crop the live frame to the guide box (plus a small margin) → JPEG data URL ≤ 1024px. */
-  function cropToGuide(): string | null {
+  /** Crop the live frame to the guide box (plus a small margin) → JPEG data URL ≤ 1024px.
+   *  `strip` crops only the bottom band of the card (passcode + set code) at full resolution. */
+  function cropToGuide(strip = false): string | null {
     const v = videoRef.current;
     const stage = stageRef.current;
     if (!v || !stage || !v.videoWidth || !guide.w) return null;
@@ -131,10 +132,15 @@ export function Scanner({ aiEnabled }: { aiEnabled: boolean }) {
     const gx = (sw - gw) / 2;
     const gy = sh * 0.46 - gh / 2; // guide is centred at 46% height (see CSS)
     const sx = Math.max(0, (gx - offX) / scale);
-    const sy = Math.max(0, (gy - offY) / scale);
+    let sy = Math.max(0, (gy - offY) / scale);
     const cw = Math.min(v.videoWidth - sx, gw / scale);
-    const ch = Math.min(v.videoHeight - sy, gh / scale);
-    const out = Math.min(1, 1024 / Math.max(cw, ch));
+    let ch = Math.min(v.videoHeight - sy, gh / scale);
+    if (strip) {
+      // bottom 13% of the card: the passcode (left) and set code (right) line
+      sy = sy + ch * 0.87;
+      ch = ch * 0.13;
+    }
+    const out = Math.min(1, (strip ? 1600 : 1024) / Math.max(cw, ch));
     const c = document.createElement("canvas");
     c.width = Math.round(cw * out);
     c.height = Math.round(ch * out);
@@ -160,12 +166,13 @@ export function Scanner({ aiEnabled }: { aiEnabled: boolean }) {
       setSheet(true);
       return;
     }
-    setStatus(guess.name ? `Read "${guess.name}" but found no match — try again or search below.` : "Couldn't read the card — hold it inside the frame and try again.");
+    setStatus(guess.name ? `Read "${guess.name}" but found no match — retake with the bottom codes sharp, or type the 8-digit passcode below.` : "Couldn't read the card — hold it inside the frame and try again.");
     setSheet(true);
   }
 
   async function capture() {
     const url = cropToGuide();
+    const strip = cropToGuide(true); // same frame, before the feed moves on
     if (!url) {
       setStatus("Camera not ready yet.");
       return;
@@ -178,7 +185,20 @@ export function Scanner({ aiEnabled }: { aiEnabled: boolean }) {
         setStatus("Reading the card…");
         const guess = await aiIdentify(url);
         if (guess) {
-          const r = await resolveScan(guess);
+          let r = await resolveScan(guess);
+          // No confident match and no usable code yet → second pass on the bottom strip,
+          // where the passcode/set code are printed. These identify the card even when
+          // the printed TCG name is not (yet) the name our database knows.
+          if (!r.confident && strip && (!guess.passcode || !guess.setCode)) {
+            setStatus("Reading the passcode…");
+            const codes = await aiReadCodes(strip);
+            if (codes && (codes.passcode || codes.setCode)) {
+              const merged = { ...guess, passcode: guess.passcode ?? codes.passcode, setCode: guess.setCode ?? codes.setCode };
+              r = await resolveScan(merged);
+              applyResolution(r, merged);
+              return;
+            }
+          }
           applyResolution(r, guess);
           return;
         }
@@ -224,7 +244,7 @@ export function Scanner({ aiEnabled }: { aiEnabled: boolean }) {
         else {
           setResults(r);
           setCandidate(null);
-          setStatus(r.length ? "" : "No cards found.");
+          setStatus(r.length ? "" : "No cards found. Brand-new TCG names can lag on YGOPRODeck — try the 8-digit passcode printed bottom-left instead.");
         }
       }
     });

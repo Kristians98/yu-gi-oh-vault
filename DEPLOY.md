@@ -67,7 +67,7 @@ invite link (`/signup?invite=…` → "Sign up with Google"); otherwise they are
 sign-up with an explanation. Google-created accounts have no password.
 
 ## 4. Cron (price refresh)
-`vercel.json` registers one cron: a weekly `GET /api/cron/sync-cards` (new sets +
+`vercel.json` registers one cron: a daily `GET /api/cron/sync-cards` (new sets +
 reprints from YGOPRODeck, collections untouched). Vercel sends
 `Authorization: Bearer $CRON_SECRET`, which the route checks. Nothing else to do. The
 route declares `maxDuration = 60`, the ceiling on every plan; a full sync takes a few

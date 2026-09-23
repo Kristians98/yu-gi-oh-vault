@@ -86,3 +86,40 @@ export async function identifyCardFromImage(dataUrl: string): Promise<ScanGuess 
     return null;
   }
 }
+
+const CODES_SYSTEM = [
+  "You read the bottom strip of a Yu-Gi-Oh! card. Report only what is legibly printed.",
+  'Respond with ONLY compact JSON: {"passcode": string, "setCode": string}.',
+  'passcode: the 8-digit number at the bottom-left (digits only; "" if any digit is unclear).',
+  'setCode: the set code like BLGG-EN046 or LOB-EN001 printed on the right ("" if unclear).',
+].join(" ");
+
+export async function readCodesFromImage(dataUrl: string): Promise<{ passcode?: number; setCode?: string } | null> {
+  if (!aiConfigured()) return null;
+  const url = `${ENDPOINT}/models/chat/completions?api-version=${API_VERSION}`;
+  const body = {
+    model: DEPLOYMENT,
+    temperature: 0,
+    max_tokens: 60,
+    messages: [
+      { role: "system", content: CODES_SYSTEM },
+      { role: "user", content: [{ type: "text", text: "Read the codes. JSON only." }, { type: "image_url", image_url: { url: dataUrl, detail: "high" } }] },
+    ],
+  };
+  try {
+    const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json", "api-key": KEY as string }, body: JSON.stringify(body) });
+    if (!res.ok) return null;
+    const text: string = (await res.json())?.choices?.[0]?.message?.content ?? "";
+    const m = text.match(/\{[\s\S]*\}/);
+    if (!m) return null;
+    const p = JSON.parse(m[0]) as { passcode?: unknown; setCode?: unknown };
+    const digits = String(p.passcode ?? "").replace(/\D/g, "");
+    const setCode = String(p.setCode ?? "").trim().toUpperCase();
+    return {
+      passcode: /^\d{8}$/.test(digits) ? Number(digits) : undefined,
+      setCode: /^[A-Z0-9]{2,5}-[A-Z]{0,3}\d{1,3}[A-Z]?$/.test(setCode) ? setCode : undefined,
+    };
+  } catch {
+    return null;
+  }
+}

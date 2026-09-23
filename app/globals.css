@@ -620,6 +620,11 @@ body {
   /* App-shell layout: header / scrolling content / tab bar as three grid rows of one
      screen. Nothing is position:fixed, so iOS Safari's collapsing toolbar and rubber-band
      overscroll can no longer move the bar — it is simply the bottom row of the layout. */
+  /* body must not exceed the *dynamic* viewport either: its min-height:100vh is the tall
+     (toolbar-hidden) viewport on iOS, which left the document scrollable by the toolbar's
+     height and let both bars drift by that much. Scoped to the app shell so the login
+     page can still scroll when the keyboard is up. */
+  html:has(.shell), body:has(.shell) { height: 100vh; height: 100dvh; min-height: 0; overflow: hidden; }
   .shell { height: 100vh; height: 100dvh; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; }
   .main { min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; }
   .mnav {
