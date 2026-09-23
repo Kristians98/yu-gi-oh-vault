@@ -636,7 +636,10 @@ body {
      by <ViewportHeight>); before that script runs, 100svh (the small viewport, which is
      what is visible at load while the toolbar is showing). */
   body:has(.shell) { position: fixed; top: 0; left: 0; right: 0; height: 100svh; height: var(--vvh, 100svh); min-height: 0; overflow: hidden; }
-  .shell { height: 100%; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; }
+  /* min-height:0 matters: the desktop rule's min-height:100vh is the tall toolbar-hidden
+     viewport on iOS (735px vs 695px visible on an iPhone 15) and stretched the shell past
+     the body, clipping the tab bar. */
+  .shell { height: 100%; min-height: 0; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; }
   .main { min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; }
   .mnav {
     display: flex;
