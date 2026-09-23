@@ -190,11 +190,11 @@ export function DeckBuilder({ aiOn, savedDecks }: { aiOn: boolean; savedDecks: S
             <div className="deck-field">
               <span>Card pool</span>
               <div className="seg">
-                <button className={"seg__b" + (poolMode === "collection" ? " on" : "")} onClick={() => setPoolMode("collection")} type="button">
-                  My collection
+                <button className={"seg__b" + (poolMode === "collection" ? " on" : "")} onClick={() => setPoolMode("collection")} type="button" title="Only cards you own">
+                  My cards
                 </button>
-                <button className={"seg__b" + (poolMode === "any" ? " on" : "")} onClick={() => setPoolMode("any")} type="button">
-                  Any legal card
+                <button className={"seg__b" + (poolMode === "any" ? " on" : "")} onClick={() => setPoolMode("any")} type="button" title="Any card legal in the format">
+                  Any card
                 </button>
               </div>
             </div>

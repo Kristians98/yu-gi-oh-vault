@@ -124,10 +124,10 @@ export function Binder({ initialCards }: { initialCards: Card[] }) {
         </label>
         <input ref={fileRef} type="file" accept=".csv,text/csv" hidden onChange={onImportFile} />
         <button className="btn-ghost" onClick={() => fileRef.current?.click()} disabled={importing} title="Import a collection CSV">
-          <UploadIcon /> {importing ? "Importing…" : "Import"}
+          <UploadIcon /> <span className="btn-ghost__label">{importing ? "Importing…" : "Import"}</span>
         </button>
         <button className="btn-ghost" onClick={exportCsv} disabled={!initialCards.length} title="Download your collection as CSV">
-          <DownloadIcon /> Export
+          <DownloadIcon /> <span className="btn-ghost__label">Export</span>
         </button>
         <button className="btn-add" onClick={() => setAdding(true)}>
           <PlusIcon /> Add card
