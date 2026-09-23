@@ -5,17 +5,6 @@ import { NotificationBell } from "./notification-bell";
 import { MobileNav } from "./mobile-nav";
 import { Realtime } from "./realtime";
 
-function MarkEye() {
-  return (
-    <svg className="brand__mark" viewBox="0 0 48 48" fill="none" aria-hidden="true">
-      <path d="M24 4 L44 40 H4 Z" stroke="#d9b45b" strokeWidth="2" strokeLinejoin="round" />
-      <path d="M13 29 q11 -11 22 0 q-11 9 -22 0 Z" fill="#0a0710" stroke="#f2d488" strokeWidth="1.6" />
-      <circle cx="24" cy="28.5" r="3.4" fill="#f2d488" />
-      <path d="M24 32 v5 M19 32 l-2.5 4 M29 32 l2.5 4" stroke="#d9b45b" strokeWidth="1.4" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 const IconLogout = () => (
   <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
@@ -42,10 +31,10 @@ export function AppShell({
       <aside className="sidebar">
         <div className="sidebar__top">
           <div className="brand">
-            <MarkEye />
+            <img className="brand__mark" src="/brand/binder.png" alt="" />
             <div>
-              <div className="brand__name">THE VAULT</div>
-              <div className="brand__sub">Duelist Binder</div>
+              <div className="brand__name">VIRTUAL BINDER</div>
+              <div className="brand__sub">Yu-Gi-Oh! collection</div>
             </div>
           </div>
           <NotificationBell />

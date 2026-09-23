@@ -2,10 +2,10 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "The Vault — Duelist Binder",
+  title: "Virtual Binder — Yu-Gi-Oh! collection",
   description: "Your Yu-Gi-Oh! binder, shared with friends. Scan, collect, trade.",
   manifest: "/manifest.webmanifest",
-  appleWebApp: { capable: true, title: "The Vault", statusBarStyle: "black-translucent" },
+  appleWebApp: { capable: true, title: "Virtual Binder", statusBarStyle: "black-translucent" },
 };
 
 export const viewport: Viewport = {

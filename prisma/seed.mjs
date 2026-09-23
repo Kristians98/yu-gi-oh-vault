@@ -1,4 +1,5 @@
 // Seed: 3 demo users + the real YGOPRODeck card DB + starter collections.
+// LOCAL DEV ONLY — production has real accounts; running this there would recreate the demo users.
 // Run: node prisma/seed.mjs   (idempotent — re-running only adds cards that are missing)
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";

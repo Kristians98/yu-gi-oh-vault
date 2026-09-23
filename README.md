@@ -1,4 +1,4 @@
-# The Vault — Duelist Binder
+# Virtual Binder — Yu-Gi-Oh! collection
 
 A private Yu-Gi-Oh! binder + trading app for you and your friends, built from the
 design in [`ARCHITECTURE.md`](./ARCHITECTURE.md). Log in, manage a persistent
@@ -19,7 +19,7 @@ node prisma/seed.mjs      # demo users + full card DB (~14.4k cards) + collectio
 npm run dev               # http://localhost:3000
 ```
 
-**Demo accounts** (password `duelist`): `you@vault.gg`, `mai@vault.gg`, `joey@vault.gg`.
+**Demo accounts** (local seed only, password `duelist`): `you@vault.gg`, `mai@vault.gg`, `joey@vault.gg`.
 They're already friends, and Mai has sent you a trade — log in as `you@vault.gg`. New friends create accounts at `/signup` (or open an invite link you generate on the Friends page).
 
 ## Features

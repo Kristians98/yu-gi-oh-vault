@@ -9,11 +9,11 @@ export function LoginForm() {
     <form action={action} className="login__form">
       <label className="login__field">
         <span>Email</span>
-        <input name="email" type="email" defaultValue="you@vault.gg" autoComplete="username" required />
+        <input name="email" type="email" autoComplete="username" required />
       </label>
       <label className="login__field">
         <span>Password</span>
-        <input name="password" type="password" defaultValue="duelist" autoComplete="current-password" required />
+        <input name="password" type="password" autoComplete="current-password" required />
       </label>
       {error && (
         <p className="login__error" role="alert">
@@ -21,7 +21,7 @@ export function LoginForm() {
         </p>
       )}
       <button className="login__submit" type="submit" disabled={pending}>
-        {pending ? "Entering…" : "Enter the Vault"}
+        {pending ? "Entering…" : "Open the binder"}
       </button>
     </form>
   );

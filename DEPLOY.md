@@ -1,4 +1,4 @@
-# Deploying The Vault (Vercel + Supabase + Cloudflare — all free tiers)
+# Deploying Virtual Binder (Vercel + Supabase + Cloudflare — all free tiers)
 
 The app already runs serverless-clean: images serve via Vercel's edge cache, real-time
 is light polling, and the Postgres schema (`prisma/schema.postgres.prisma`) mirrors the
