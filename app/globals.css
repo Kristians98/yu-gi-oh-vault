@@ -624,8 +624,12 @@ body {
      (toolbar-hidden) viewport on iOS, which left the document scrollable by the toolbar's
      height and let both bars drift by that much. Scoped to the app shell so the login
      page can still scroll when the keyboard is up. */
-  html:has(.shell), body:has(.shell) { height: 100vh; height: 100dvh; min-height: 0; overflow: hidden; }
-  .shell { height: 100vh; height: 100dvh; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; }
+  /* Height = what is actually visible. svh is the small (toolbar-shown) viewport, which is
+     always fully on screen; --vvh (set from window.visualViewport by <ViewportHeight>)
+     refines it to the exact pixel, including when the keyboard is up. iOS Safari's dvh is
+     avoided: on a non-scrolling page it can report the tall viewport and cut the tab bar. */
+  html:has(.shell), body:has(.shell) { height: 100vh; height: 100svh; height: var(--vvh, 100svh); min-height: 0; overflow: hidden; }
+  .shell { height: 100vh; height: 100svh; height: var(--vvh, 100svh); grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; }
   .main { min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; }
   .mnav {
     display: flex;
@@ -821,7 +825,7 @@ body {
    stage takes whatever is left under the header, and results live in a side panel
    (desktop) or a sheet over the camera (phone). Nothing on this page scrolls except
    the panel's own content. */
-.shell:has(.scanpage) { height: 100dvh; overflow: hidden; }
+.shell:has(.scanpage) { height: 100vh; height: 100svh; height: var(--vvh, 100svh); overflow: hidden; }
 .shell:has(.scanpage) .main { min-height: 0; overflow: hidden; }
 body:has(.scanpage) { overflow: hidden; }
 .scanpage { flex: 1; min-height: 0; position: relative; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(300px, 0.75fr); gap: 20px; padding: 0 34px 24px; }

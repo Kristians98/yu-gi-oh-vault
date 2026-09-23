@@ -5,6 +5,7 @@ import { NotificationBell } from "./notification-bell";
 import { MobileNav } from "./mobile-nav";
 import { Realtime } from "./realtime";
 import { ScrollReset } from "./scroll-reset";
+import { ViewportHeight } from "./viewport-height";
 
 const IconLogout = () => (
   <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -61,6 +62,7 @@ export function AppShell({
       <MobileNav />
       <Realtime />
       <ScrollReset />
+      <ViewportHeight />
     </div>
   );
 }
