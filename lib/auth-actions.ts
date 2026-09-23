@@ -4,7 +4,9 @@ import { AuthError } from "next-auth";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { cookies } from "next/headers";
 import { auth, signIn } from "@/auth";
+import { INVITE_COOKIE } from "@/lib/oauth";
 
 const schema = z.object({
   displayName: z.string().min(1).max(40),
@@ -63,4 +65,17 @@ export async function createInvite(): Promise<string> {
   const code = crypto.randomUUID().replace(/-/g, "").slice(0, 10);
   await prisma.invite.create({ data: { code, createdById: session.user.id } });
   return code;
+}
+
+/** Start Google sign-in. An invite code (from /signup?invite=…) is parked in a short-lived
+ *  cookie so the signIn callback can redeem it once Google sends the person back. */
+export async function googleSignIn(formData: FormData): Promise<void> {
+  const invite = String(formData.get("invite") || "").trim();
+  const jar = await cookies();
+  if (invite) {
+    jar.set(INVITE_COOKIE, invite, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", maxAge: 600, path: "/" });
+  } else {
+    jar.delete(INVITE_COOKIE);
+  }
+  await signIn("google", { redirectTo: "/" });
 }

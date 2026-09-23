@@ -47,8 +47,24 @@ well within Supabase's 500 MB free limit.)
    AZURE_AI_API_VERSION      2024-05-01-preview
    CRON_SECRET               openssl rand -hex 16
    ALLOW_OPEN_SIGNUP         false
+   AUTH_GOOGLE_ID            (optional) Google OAuth client ID — enables "Continue with Google"
+   AUTH_GOOGLE_SECRET        (optional) its client secret
    ```
 4. Deploy.
+
+### Google sign-in (optional)
+1. In [Google Cloud Console](https://console.cloud.google.com/apis/credentials) create an
+   **OAuth client ID** of type *Web application* (set up the OAuth consent screen first if
+   asked; External, then add yourself as a test user or publish it).
+2. **Authorized redirect URIs**: `https://<your-vercel-domain>/api/auth/callback/google`
+   and, for local dev, `http://localhost:3000/api/auth/callback/google`.
+3. Put the client ID / secret into `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` and redeploy.
+   Without them the Google button simply does not render.
+
+Behaviour: a Google email that matches an existing account signs into that account. A new
+email gets an account only when `ALLOW_OPEN_SIGNUP=true` or the person came through an
+invite link (`/signup?invite=…` → "Sign up with Google"); otherwise they are sent back to
+sign-up with an explanation. Google-created accounts have no password.
 
 ## 4. Cron (price refresh)
 `vercel.json` registers one cron: a weekly `GET /api/cron/sync-cards` (new sets +

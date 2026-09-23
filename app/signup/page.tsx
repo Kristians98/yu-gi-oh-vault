@@ -1,9 +1,10 @@
 import { redirect } from "next/navigation";
-import { auth } from "@/auth";
+import { auth, googleEnabled } from "@/auth";
 import { SignupForm } from "@/components/signup-form";
+import { GoogleButton, OrDivider } from "@/components/google-button";
 
-export default async function SignupPage({ searchParams }: { searchParams: Promise<{ invite?: string }> }) {
-  const { invite } = await searchParams;
+export default async function SignupPage({ searchParams }: { searchParams: Promise<{ invite?: string; error?: string }> }) {
+  const { invite, error } = await searchParams;
   const session = await auth();
   if (session?.user) redirect("/");
   const inviteOnly = process.env.ALLOW_OPEN_SIGNUP !== "true";
@@ -27,6 +28,15 @@ export default async function SignupPage({ searchParams }: { searchParams: Promi
               ? "Sign-up is invite-only — ask a friend for an invite link."
               : "Create your duelist account."}
         </p>
+        {googleEnabled && (
+          <>
+            <GoogleButton invite={invite} label="Sign up with Google" />
+            <OrDivider />
+          </>
+        )}
+        {error === "invite-only" && (
+          <p className="login__error" role="alert">That Google account has no Vault yet, and sign-up is invite-only — open your invite link first, then use Google.</p>
+        )}
         <SignupForm invite={invite} />
         <div className="login__demo">
           <span>

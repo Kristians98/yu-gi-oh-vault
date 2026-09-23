@@ -19,7 +19,7 @@ model User {
   username     String   @unique
   displayName  String?
   avatarUrl    String?
-  passwordHash String
+  passwordHash String // "" for accounts created via Google sign-in (no password login)
   createdAt    DateTime @default(now())
 
   ownedCards       OwnedCard[]

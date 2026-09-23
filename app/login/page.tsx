@@ -1,10 +1,19 @@
 import { redirect } from "next/navigation";
-import { auth } from "@/auth";
+import { auth, googleEnabled } from "@/auth";
 import { LoginForm } from "@/components/login-form";
+import { GoogleButton, OrDivider } from "@/components/google-button";
 
-export default async function LoginPage() {
+const ERRORS: Record<string, string> = {
+  google: "Google didn't return a verified email — try another account.",
+  OAuthCallbackError: "Google sign-in was cancelled or failed. Try again.",
+  AccessDenied: "That Google account isn't allowed in.",
+};
+
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+  const { error } = await searchParams;
   const session = await auth();
   if (session?.user) redirect("/");
+  const errorMsg = error ? ERRORS[error] ?? "Sign-in failed. Try again." : null;
 
   return (
     <main className="login">
@@ -19,6 +28,13 @@ export default async function LoginPage() {
           <span>THE VAULT</span>
         </div>
         <p className="login__tag">Your duelist binder, shared with friends.</p>
+        {googleEnabled && (
+          <>
+            <GoogleButton />
+            <OrDivider />
+          </>
+        )}
+        {errorMsg && <p className="login__error" role="alert">{errorMsg}</p>}
         <LoginForm />
         <div className="login__demo">
           <span>

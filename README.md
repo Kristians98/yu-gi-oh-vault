@@ -80,6 +80,13 @@ curl -H "x-cron-secret: $CRON_SECRET" http://localhost:3000/api/cron/sync-cards
 `vercel.json` schedules it weekly (Monday 06:00 UTC). New rarity names YGOPRODeck may
 introduce are folded onto the UI's rarity set in `prisma/card-normalize.mjs`.
 
+## Google sign-in
+
+Set `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` (Google Cloud OAuth client, redirect URI
+`<origin>/api/auth/callback/google`) and a **Continue with Google** button appears on
+login and sign-up. Existing accounts match by email; new accounts follow the same
+invite/open-sign-up rule as the form. See DEPLOY.md for the console steps.
+
 ## Sign-up
 
 Invite-only by default — a friend generates an invite link on the Friends page
