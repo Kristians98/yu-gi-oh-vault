@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { containsCI } from "@/lib/db-text";
 import { logActivity } from "@/lib/notify";
 
 async function requireUser(): Promise<string> {
@@ -15,7 +16,7 @@ export async function searchCards(q: string) {
   const needle = (q || "").trim();
   if (needle.length < 2) return [];
   const cards = await prisma.card.findMany({
-    where: { name: { contains: needle } },
+    where: { name: containsCI(needle) },
     take: 16,
     orderBy: { name: "asc" },
     include: { printings: { orderBy: [{ setCode: "asc" }] } },
@@ -83,7 +84,7 @@ export async function searchSets(q: string) {
   if (needle.length < 2) return [];
   const groups = await prisma.cardPrinting.groupBy({
     by: ["setName"],
-    where: { setName: { contains: needle } },
+    where: { setName: containsCI(needle) },
     _count: { _all: true },
   });
   return groups

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { containsCI } from "@/lib/db-text";
 import { buildDeckJSON, refineDeckJSON, type RawDeck } from "@/lib/deck-ai";
 
 async function requireUser(): Promise<string> {
@@ -94,7 +95,7 @@ async function resolveByName(names: string[]): Promise<Map<string, CardRow>> {
   for (const c of exact) byLower.set(c.name.toLowerCase(), c);
   for (const n of uniq) {
     if (byLower.has(n.toLowerCase())) continue;
-    const f = await prisma.card.findFirst({ where: { name: { contains: n } }, select, orderBy: { name: "asc" } });
+    const f = await prisma.card.findFirst({ where: { name: containsCI(n) }, select, orderBy: { name: "asc" } });
     if (f) byLower.set(n.toLowerCase(), f);
   }
   return byLower;
