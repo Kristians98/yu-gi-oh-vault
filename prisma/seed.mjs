@@ -55,7 +55,6 @@ const STARTER = [
   { id: 6368038, rarity: "RARE", condition: "NM", quantity: 1, forTrade: false },
 ];
 const FRIEND_CARDS = [89631139, 46986414, 74677422, 40640057, 55144522, 70781052, 6368038, 44095762];
-const COND_MULT = { NM: 1, LP: 0.85, MP: 0.7, HP: 0.5, DMG: 0.3 };
 
 async function main() {
   const pw = await bcrypt.hash("duelist", 10);
@@ -85,12 +84,12 @@ async function main() {
       const m = await prisma.cardPrinting.findFirst({ where: { cardId, rarity: preferRarity } });
       if (m) return m;
     }
-    const any = await prisma.cardPrinting.findFirst({ where: { cardId }, orderBy: { priceUsd: "desc" } });
+    const any = await prisma.cardPrinting.findFirst({ where: { cardId }, orderBy: { setCode: "asc" } });
     if (any) return any;
     // synthetic printing so curated showcase cards always appear with the intended rarity
     const card = await prisma.card.findUnique({ where: { id: cardId } });
     if (!card) return null;
-    return prisma.cardPrinting.create({ data: { cardId, setName: "Showcase", setCode: "DEMO", rarity: preferRarity || "COMMON", priceUsd: null } });
+    return prisma.cardPrinting.create({ data: { cardId, setName: "Showcase", setCode: "DEMO", rarity: preferRarity || "COMMON" } });
   }
 
   async function give(user, entries) {
@@ -149,7 +148,6 @@ async function main() {
         rarity: o.printing.rarity,
         condition: o.condition,
         quantity: 1,
-        valueUsd: (o.printing.priceUsd || 0) * (COND_MULT[o.condition] || 1),
       });
       await prisma.trade.create({
         data: {

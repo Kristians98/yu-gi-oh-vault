@@ -11,7 +11,6 @@ export type OwnedRow = {
     setName: string;
     setCode: string;
     rarity: string;
-    priceUsd: number | null;
     card: {
       id: number;
       name: string;
@@ -49,7 +48,6 @@ export function toDisplayCard(o: OwnedRow): Card {
     rarity: o.printing.rarity as Rarity,
     condition: o.condition as Condition,
     quantity: o.quantity,
-    priceUsd: o.printing.priceUsd ?? 0,
     forTrade: o.forTrade,
     desc: c.desc,
     archetype: c.archetype,

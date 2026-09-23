@@ -51,14 +51,16 @@ well within Supabase's 500 MB free limit.)
 4. Deploy.
 
 ## 4. Cron (price refresh)
-`vercel.json` registers two crons: a daily `GET /api/cron/refresh-prices` and a weekly
-`GET /api/cron/sync-cards` (new sets + reprints from YGOPRODeck, collections untouched).
-Vercel sends `Authorization: Bearer $CRON_SECRET`, which the routes check. Nothing else to do.
-Both routes declare `maxDuration = 60`, the ceiling on every plan; a full sync takes a
-few seconds (the YGOPRODeck list is CDN-cached). Hobby allows exactly two cron jobs, each
-at most once per day, and the weekly sync counts as one, so these two are the budget. If
-a run ever does time out, `node prisma/sync-cards.mjs` against the prod `DATABASE_URL`
-does the same work from your machine.
+`vercel.json` registers one cron: a weekly `GET /api/cron/sync-cards` (new sets +
+reprints from YGOPRODeck, collections untouched). Vercel sends
+`Authorization: Bearer $CRON_SECRET`, which the route checks. Nothing else to do. The
+route declares `maxDuration = 60`, the ceiling on every plan; a full sync takes a few
+seconds (the YGOPRODeck list is CDN-cached). If a run ever does time out,
+`node prisma/sync-cards.mjs` against the prod `DATABASE_URL` does the same work.
+
+**Schema change (prices removed):** `CardPrinting.priceUsd` and `TradeItem.valueUsd` are
+gone. Pushing the schema drops those columns, which Prisma treats as data loss, so run it
+once with the flag: `npx prisma db push --schema=prisma/schema.postgres.prisma --accept-data-loss`.
 
 ## 5. Cloudflare (domain)
 Add your domain in Vercel (Settings → Domains), then in Cloudflare DNS add the CNAME/A

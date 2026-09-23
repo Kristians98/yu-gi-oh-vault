@@ -8,8 +8,6 @@ type RowData = {
   initial: string;
   giveN: number;
   getN: number;
-  giveVal: number;
-  getVal: number;
 };
 
 function Row({ r }: { r: RowData }) {
@@ -22,7 +20,7 @@ function Row({ r }: { r: RowData }) {
           <span className={"tstatus tstatus--" + r.status.toLowerCase()}>{r.status}</span>
         </div>
         <div className="trow__sub">
-          You give {r.giveN} (${r.giveVal.toFixed(2)}) · get {r.getN} (${r.getVal.toFixed(2)})
+          You give {r.giveN} card{r.giveN === 1 ? "" : "s"} · get {r.getN}
         </div>
       </div>
       <span className="trow__arrow">→</span>
@@ -66,8 +64,6 @@ export default async function TradesPage() {
         initial: name[0].toUpperCase(),
         giveN: give.length,
         getN: get.length,
-        giveVal: give.reduce((s, i) => s + (i.valueUsd || 0), 0),
-        getVal: get.reduce((s, i) => s + (i.valueUsd || 0), 0),
       } as RowData,
     };
   });

@@ -1,8 +1,8 @@
 // Card DB sync: bring Card + CardPrinting up to date with YGOPRODeck WITHOUT touching
 // anything users own. Inserts new cards (new sets) and new printings (reprints of old
 // cards), and refreshes the derived tag columns (banlist status, archetype, dates) on
-// cards where they changed. Existing printings and their prices are left alone — the
-// price cron owns those. Safe to run on an empty DB (that is how the seed imports).
+// cards where they changed. Existing printings are left alone (the app holds no price
+// data). Safe to run on an empty DB (that is how the seed imports).
 import { YGOPRODECK_API, toCardRow, toPrintingRows, printingKey } from "./card-normalize.mjs";
 
 const TAG_FIELDS = ["archetype", "banTcg", "banGoat", "banEdison", "handTrap", "tcgDate", "linkval", "isTuner"];

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { type Card, type Condition, RARITY, CONDITION_MULT, money, num } from "@/lib/cards";
+import { type Card, type Condition, RARITY, num } from "@/lib/cards";
 import { RarityCard } from "./rarity-card";
 import { removeOwnedCard, setForTrade, setQuantity } from "@/lib/actions";
 import { getReactions, toggleReaction } from "@/lib/reactions";
@@ -98,7 +98,6 @@ export function CardModal({ card, onClose, onChanged, readOnly }: { card: Card; 
 
   const r = RARITY[card.rarity];
   const isMonster = card.frame !== "spell" && card.frame !== "trap";
-  const estValue = card.priceUsd * CONDITION_MULT[card.condition];
   const owned = !!card.ownedId;
 
   function run(fn: () => Promise<void>, close = false) {
@@ -213,10 +212,6 @@ export function CardModal({ card, onClose, onChanged, readOnly }: { card: Card; 
             <span className="kv__v">
               {CONDITION_LABEL[card.condition]} <span className="mono" style={{ color: "var(--muted-2)" }}>({card.condition})</span>
             </span>
-            <span className="kv__k">Market</span>
-            <span className="kv__v"><span className="mono">{money(card.priceUsd)}</span></span>
-            <span className="kv__k">Est. value</span>
-            <span className="kv__v"><span className="mono" style={{ color: "var(--gold-bright)" }}>${estValue.toFixed(2)}</span></span>
           </div>
 
           {card.desc && <p className="card-desc">{card.desc}</p>}

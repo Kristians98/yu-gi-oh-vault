@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { areFriends } from "@/lib/social";
-import { CONDITION_MULT, type Condition } from "@/lib/cards";
 import { TradeBuilder } from "@/components/trade-builder";
 
 export default async function NewTradePage({ searchParams }: { searchParams: Promise<{ to?: string }> }) {
@@ -26,7 +25,6 @@ export default async function NewTradePage({ searchParams }: { searchParams: Pro
     rarity: o.printing.rarity,
     setCode: o.printing.setCode,
     condition: o.condition,
-    value: (o.printing.priceUsd || 0) * (CONDITION_MULT[o.condition as Condition] || 1),
   });
 
   return (

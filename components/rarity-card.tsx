@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useRef, type CSSProperties, type PointerEvent } from "react";
-import { type Card, RARITY, FRAME_COLOR, artUrl, money } from "@/lib/cards";
+import { type Card, RARITY, FRAME_COLOR, artUrl } from "@/lib/cards";
 
 const MAX_TILT = 15;
 const GLINTS = [1, 2, 3, 4, 5, 6] as const;
@@ -96,7 +96,7 @@ export function RarityCard({
             <span className="dot" style={{ background: r.color }} />
             {r.abbr}
           </span>
-          <span className="card__price">{money(card.priceUsd)}</span>
+          <span className="card__set">{card.setCode}</span>
         </div>
       )}
     </button>

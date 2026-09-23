@@ -5,7 +5,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { areFriends } from "@/lib/social";
 import { displayNameOf, logActivity, notify } from "@/lib/notify";
-import { effectiveValue, planTransfer } from "@/lib/value";
+import { planTransfer } from "@/lib/value";
 
 async function me(): Promise<string> {
   const s = await auth();
@@ -16,7 +16,7 @@ async function me(): Promise<string> {
 type OwnedWithCard = {
   printingId: string;
   condition: string;
-  printing: { setName: string; setCode: string; rarity: string; priceUsd: number | null; card: { id: number; name: string } };
+  printing: { setName: string; setCode: string; rarity: string; card: { id: number; name: string } };
 };
 
 export async function proposeTrade(input: {
@@ -48,7 +48,6 @@ export async function proposeTrade(input: {
     rarity: o.printing.rarity,
     condition: o.condition,
     quantity: 1,
-    valueUsd: effectiveValue(o.printing.priceUsd, o.condition),
   });
 
   const trade = await prisma.trade.create({

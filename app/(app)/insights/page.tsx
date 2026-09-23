@@ -1,7 +1,6 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { RARITY, type Rarity, EXODIA_PIECES, artUrl, money } from "@/lib/cards";
-import { effectiveValue } from "@/lib/value";
+import { RARITY, type Rarity, EXODIA_PIECES, artUrl } from "@/lib/cards";
 
 export default async function InsightsPage() {
   const session = await auth();
@@ -20,7 +19,7 @@ export default async function InsightsPage() {
   }
 
   const totalQty = owned.reduce((s, o) => s + o.quantity, 0);
-  const value = owned.reduce((s, o) => s + effectiveValue(o.printing.priceUsd, o.condition) * o.quantity, 0);
+  const forTrade = owned.filter((o) => o.forTrade).reduce((s, o) => s + o.quantity, 0);
   const ownedCardIds = new Set(owned.map((o) => o.printing.card.id));
   const tradesDone = await prisma.trade.count({ where: { status: "COMPLETED", OR: [{ proposerId: userId }, { receiverId: userId }] } });
 
@@ -30,13 +29,14 @@ export default async function InsightsPage() {
   const rarityRows = (Object.keys(RARITY) as Rarity[]).filter((r) => rc.get(r)).map((r) => ({ r, count: rc.get(r)! })).sort((a, b) => RARITY[b.r].tier - RARITY[a.r].tier);
   const maxRarity = Math.max(1, ...rarityRows.map((x) => x.count));
 
-  // Most valuable single card
+  // Rarest single card (highest rarity tier; better condition breaks ties)
+  const COND_RANK: Record<string, number> = { NM: 5, LP: 4, MP: 3, HP: 2, DMG: 1 };
+  const tierOf = (o: (typeof owned)[number]) => RARITY[o.printing.rarity as Rarity]?.tier ?? 0;
   let top = owned[0];
-  let topVal = -1;
   for (const o of owned) {
-    const v = effectiveValue(o.printing.priceUsd, o.condition);
-    if (v > topVal) { topVal = v; top = o; }
+    if (tierOf(o) > tierOf(top) || (tierOf(o) === tierOf(top) && (COND_RANK[o.condition] ?? 0) > (COND_RANK[top.condition] ?? 0))) top = o;
   }
+  const topRarity = RARITY[top.printing.rarity as Rarity];
 
   // Set completion (top sets the user has cards in)
   const bySet = new Map<string, Set<number>>();
@@ -74,7 +74,7 @@ export default async function InsightsPage() {
         <div className="insights">
           <Stat label="Cards" value={String(totalQty)} sub={`${owned.length} unique`} />
           <Stat label="Sets" value={String(bySet.size)} sub="in your binder" />
-          <Stat label="Est. value" value={money(Math.round(value))} sub="condition-adjusted" />
+          <Stat label="For trade" value={String(forTrade)} sub="copies up for grabs" />
           <Stat label="Trades done" value={String(tradesDone)} sub="completed" />
         </div>
 
@@ -105,14 +105,14 @@ export default async function InsightsPage() {
         </section>
 
         <section className="panel">
-          <h2 className="panel__title">Most valuable</h2>
+          <h2 className="panel__title">Rarest card</h2>
           <div className="topcard">
             <img src={artUrl(top.printing.card.id, true)} alt={top.printing.card.name} />
             <div>
               <div className="rowlist__name">{top.printing.card.name}</div>
               <div className="rowlist__meta" style={{ color: RARITY[top.printing.rarity as Rarity]?.color }}>{RARITY[top.printing.rarity as Rarity]?.label ?? top.printing.rarity} · {top.condition}</div>
             </div>
-            <div className="topcard__v">{money(Math.round(topVal))}</div>
+            <div className="topcard__v" style={{ color: topRarity?.color }}>{topRarity?.abbr ?? top.printing.rarity}</div>
           </div>
         </section>
 

@@ -35,10 +35,10 @@ const UploadIcon = () => (
 // CSV export of the collection (opens cleanly in Excel/Sheets).
 const csvCell = (s: string) => (/[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
 function buildCollectionCsv(cards: Card[]): string {
-  const head = ["Name", "Qty", "Set", "Set Code", "Rarity", "Condition", "For Trade", "Price (USD)", "Type"];
+  const head = ["Name", "Qty", "Set", "Set Code", "Rarity", "Condition", "For Trade", "Type"];
   const rows = cards.map((c) => [
     c.name, String(c.quantity), c.setName, c.setCode, RARITY[c.rarity].label, c.condition,
-    c.forTrade ? "yes" : "no", c.priceUsd.toFixed(2), c.typeLine,
+    c.forTrade ? "yes" : "no", c.typeLine,
   ]);
   return [head, ...rows].map((r) => r.map(csvCell).join(",")).join("\r\n");
 }

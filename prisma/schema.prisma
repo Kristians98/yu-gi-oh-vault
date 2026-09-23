@@ -69,7 +69,6 @@ model CardPrinting {
   setName  String
   setCode  String
   rarity   String
-  priceUsd Float?
 
   ownedCards OwnedCard[]
 
@@ -155,7 +154,6 @@ model TradeItem {
   rarity   String
   condition String
   quantity Int     @default(1)
-  valueUsd Float?
 
   @@index([tradeId])
 }

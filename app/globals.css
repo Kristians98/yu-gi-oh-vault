@@ -387,7 +387,7 @@ body {
 .card__meta { position: absolute; left: 0; right: 0; bottom: 0; z-index: 7; padding: 30px 9px 8px; display: flex; align-items: flex-end; justify-content: space-between; gap: 6px; background: linear-gradient(transparent, rgba(6, 4, 10, 0.94)); }
 .card__rarity { display: inline-flex; align-items: center; gap: 5px; font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; }
 .card__rarity .dot { width: 7px; height: 7px; border-radius: 50%; box-shadow: 0 0 7px currentColor; }
-.card__price { font-family: var(--font-mono); font-size: 11px; color: var(--gold-bright); font-weight: 700; }
+.card__set { font-family: var(--font-mono); font-size: 10.5px; color: var(--muted-2); letter-spacing: 0.02em; }
 
 /* ============================================================
    Focus modal
@@ -807,7 +807,6 @@ body {
 .titem__info { flex: 1; min-width: 0; }
 .titem__name { font-weight: 600; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .titem__meta { font-family: var(--font-mono); font-size: 10.5px; color: var(--muted-2); margin-top: 2px; }
-.titem__val { font-family: var(--font-mono); font-size: 12px; color: var(--gold-bright); }
 
 /* Scanner */
 .scan__toast { background: rgba(126, 224, 160, 0.12); border: 1px solid rgba(126, 224, 160, 0.4); color: #bfeccd; border-radius: 11px; padding: 11px 16px; margin-bottom: 18px; font-size: 14px; }

@@ -5,12 +5,12 @@ import { auth } from "@/auth";
 import { aiConfigured, identifyCardFromImage } from "@/lib/azure-vision";
 import { rateLimit } from "@/lib/rate-limit";
 
-function shape(c: { id: number; name: string; frame: string; printings: { id: string; setName: string; setCode: string; rarity: string; priceUsd: number | null }[] }) {
+function shape(c: { id: number; name: string; frame: string; printings: { id: string; setName: string; setCode: string; rarity: string; }[] }) {
   return {
     id: c.id,
     name: c.name,
     frame: c.frame,
-    printings: c.printings.map((p) => ({ id: p.id, setName: p.setName, setCode: p.setCode, rarity: p.rarity, priceUsd: p.priceUsd })),
+    printings: c.printings.map((p) => ({ id: p.id, setName: p.setName, setCode: p.setCode, rarity: p.rarity })),
   };
 }
 
@@ -19,7 +19,7 @@ export async function identifyByPasscode(passcode: number) {
   if (!Number.isFinite(passcode)) return null;
   const c = await prisma.card.findUnique({
     where: { id: passcode },
-    include: { printings: { orderBy: [{ priceUsd: "desc" }] } },
+    include: { printings: { orderBy: [{ setCode: "asc" }] } },
   });
   return c ? shape(c) : null;
 }

@@ -137,7 +137,7 @@ export function AddCardDialog({ onClose }: { onClose: () => void }) {
                 {picked.printings.length === 0 && <option value="">No printings on record</option>}
                 {picked.printings.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.setCode} · {RARITY[p.rarity as Rarity]?.label ?? p.rarity}{p.priceUsd ? ` · $${p.priceUsd}` : ""}
+                    {p.setCode} · {RARITY[p.rarity as Rarity]?.label ?? p.rarity}
                   </option>
                 ))}
               </select>

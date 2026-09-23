@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { type Card, RARITY, EXODIA_PIECES, money } from "@/lib/cards";
+import { type Card, RARITY, EXODIA_PIECES } from "@/lib/cards";
 
 function Stat({ label, value, sub, valueColor }: { label: string; value: string; sub: ReactNode; valueColor?: string }) {
   return (
@@ -14,7 +14,7 @@ function Stat({ label, value, sub, valueColor }: { label: string; value: string;
 export function InsightsStrip({ cards }: { cards: Card[] }) {
   const totalQty = cards.reduce((s, c) => s + c.quantity, 0);
   const sets = new Set(cards.map((c) => c.setName)).size;
-  const value = cards.reduce((s, c) => s + c.priceUsd * c.quantity, 0);
+  const forTrade = cards.filter((c) => c.forTrade).reduce((s, c) => s + c.quantity, 0);
   const rarest = cards.length ? [...cards].sort((a, b) => RARITY[b.rarity].tier - RARITY[a.rarity].tier)[0] : null;
 
   const ownedIds = new Set(cards.map((c) => c.id));
@@ -25,7 +25,7 @@ export function InsightsStrip({ cards }: { cards: Card[] }) {
     <div className="insights">
       <Stat label="Cards" value={String(totalQty)} sub={<>{cards.length} unique</>} />
       <Stat label="Sets" value={String(sets)} sub={<>across your binder</>} />
-      <Stat label="Est. value" value={money(Math.round(value))} sub={<>market · all copies</>} />
+      <Stat label="For trade" value={String(forTrade)} sub={<>copies up for grabs</>} />
       <Stat
         label="Rarest"
         value={rarest ? RARITY[rarest.rarity].abbr : "—"}

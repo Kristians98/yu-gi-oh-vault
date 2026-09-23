@@ -2,10 +2,11 @@ import { notFound } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { RARITY, type Rarity, artUrl } from "@/lib/cards";
+import { fairnessVerdict } from "@/lib/value";
 import { TradeActions } from "@/components/trade-actions";
 import { TradeChat } from "@/components/trade-chat";
 
-type Item = { id: string; cardId: number; cardName: string; rarity: string; setCode: string; condition: string; valueUsd: number | null };
+type Item = { id: string; cardId: number; cardName: string; rarity: string; setCode: string; condition: string };
 
 function Items({ items }: { items: Item[] }) {
   if (items.length === 0) return <p className="muted">—</p>;
@@ -20,7 +21,6 @@ function Items({ items }: { items: Item[] }) {
               <div className="titem__name">{i.cardName}</div>
               <div className="titem__meta"><span style={{ color: r?.color }}>{r?.label ?? i.rarity}</span> · {i.setCode} · {i.condition}</div>
             </div>
-            <div className="titem__val">${(i.valueUsd || 0).toFixed(2)}</div>
           </div>
         );
       })}
@@ -43,12 +43,8 @@ export default async function TradeDetailPage({ params }: { params: Promise<{ id
   const other = iAmProposer ? trade.receiver : trade.proposer;
   const give = trade.items.filter((i) => i.ownerId === me);
   const get = trade.items.filter((i) => i.ownerId !== me);
-  const giveVal = give.reduce((s, i) => s + (i.valueUsd || 0), 0);
-  const getVal = get.reduce((s, i) => s + (i.valueUsd || 0), 0);
-  const delta = giveVal - getVal;
   const otherName = other.displayName || other.username;
-  const verdict = Math.abs(delta) < 1 ? "Even trade" : delta > 0 ? `Favours ${otherName} by $${delta.toFixed(2)}` : `Favours you by $${(-delta).toFixed(2)}`;
-  const leftPct = giveVal + getVal > 0 ? (giveVal / (giveVal + getVal)) * 100 : 50;
+  const { even, label: verdict, leftPct } = fairnessVerdict(give.length, get.length, otherName);
   const msgs = trade.messages.map((m) => ({ id: m.id, mine: m.senderId === me, body: m.body, at: m.createdAt.getTime() }));
 
   return (
@@ -62,11 +58,11 @@ export default async function TradeDetailPage({ params }: { params: Promise<{ id
       <div className="content">
         <div className="tdetail">
           <section className="tdetail__col">
-            <h2 className="tdetail__h">You give <span>${giveVal.toFixed(2)}</span></h2>
+            <h2 className="tdetail__h">You give <span>{give.length} card{give.length === 1 ? "" : "s"}</span></h2>
             <Items items={give} />
           </section>
           <section className="tdetail__col">
-            <h2 className="tdetail__h">You get <span>${getVal.toFixed(2)}</span></h2>
+            <h2 className="tdetail__h">You get <span>{get.length} card{get.length === 1 ? "" : "s"}</span></h2>
             <Items items={get} />
           </section>
         </div>
@@ -74,9 +70,9 @@ export default async function TradeDetailPage({ params }: { params: Promise<{ id
         <div className="fairness">
           <div className="fm">
             <div className="fm__head">
-              <span>You ${giveVal.toFixed(2)}</span>
-              <span className="fm__verdict">{verdict}</span>
-              <span>${getVal.toFixed(2)} {otherName}</span>
+              <span>You {give.length}</span>
+              <span className={"fm__verdict fm__verdict--" + (even ? "even" : "skew")}>{verdict}</span>
+              <span>{get.length} {otherName}</span>
             </div>
             <div className="fm__bar"><div className="fm__fill" style={{ width: leftPct + "%" }} /></div>
           </div>

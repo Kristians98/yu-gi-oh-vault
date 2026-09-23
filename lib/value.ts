@@ -1,19 +1,16 @@
 // Pure trade math — no DB/auth, so it's unit-testable (see value.test.ts).
-import { CONDITION_MULT, type Condition } from "./cards";
+// There is no price data in the app (no source is reliable enough), so trades are
+// compared by what each side hands over: the card count.
 
-/** A card's tradeable value = market price scaled by condition. */
-export function effectiveValue(priceUsd: number | null | undefined, condition: string): number {
-  return (priceUsd || 0) * (CONDITION_MULT[condition as Condition] ?? 1);
-}
-
-/** Fairness summary for a trade given each side's total value. */
-export function fairnessVerdict(offerVal: number, reqVal: number, themName = "them") {
-  const delta = offerVal - reqVal; // positive → you give more
-  const total = offerVal + reqVal;
-  const even = Math.abs(delta) < Math.max(2, total * 0.1);
+/** Fairness summary for a trade given how many cards each side gives. */
+export function fairnessVerdict(offerCount: number, reqCount: number, themName = "them") {
+  const delta = offerCount - reqCount; // positive → you give more cards
+  const total = offerCount + reqCount;
+  const even = delta === 0;
+  const plural = (n: number) => `${n} more card${n === 1 ? "" : "s"}`;
   const label =
-    Math.abs(delta) < 1 ? "Even trade" : delta > 0 ? `Favours ${themName} by $${delta.toFixed(2)}` : `Favours you by $${(-delta).toFixed(2)}`;
-  const leftPct = total > 0 ? (offerVal / total) * 100 : 50;
+    total === 0 ? "Pick cards to compare" : even ? "Even swap" : delta > 0 ? `You give ${plural(delta)}` : `${themName} gives ${plural(-delta)}`;
+  const leftPct = total > 0 ? (offerCount / total) * 100 : 50;
   return { delta, even, label, leftPct };
 }
 

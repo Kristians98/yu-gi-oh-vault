@@ -4,22 +4,19 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { RARITY, type Rarity, artUrl } from "@/lib/cards";
 import { proposeTrade } from "@/lib/trades";
+import { fairnessVerdict } from "@/lib/value";
 
-type Tile = { ownedId: string; cardId: number; name: string; rarity: string; setCode: string; condition: string; value: number };
+type Tile = { ownedId: string; cardId: number; name: string; rarity: string; setCode: string; condition: string };
 type Party = { id: string; name: string; username: string };
 
-function FairnessMeter({ offerVal, reqVal, themName }: { offerVal: number; reqVal: number; themName: string }) {
-  const total = offerVal + reqVal;
-  const leftPct = total > 0 ? (offerVal / total) * 100 : 50;
-  const delta = offerVal - reqVal;
-  const even = Math.abs(delta) < Math.max(2, total * 0.1);
-  const label = Math.abs(delta) < 1 ? "Even trade" : delta > 0 ? `Favours ${themName} by $${delta.toFixed(2)}` : `Favours you by $${(-delta).toFixed(2)}`;
+function FairnessMeter({ offerN, reqN, themName }: { offerN: number; reqN: number; themName: string }) {
+  const { even, label, leftPct } = fairnessVerdict(offerN, reqN, themName);
   return (
     <div className="fm">
       <div className="fm__head">
-        <span>You ${offerVal.toFixed(2)}</span>
+        <span>You {offerN} card{offerN === 1 ? "" : "s"}</span>
         <span className={"fm__verdict fm__verdict--" + (even ? "even" : "skew")}>{label}</span>
-        <span>${reqVal.toFixed(2)} {themName}</span>
+        <span>{reqN} card{reqN === 1 ? "" : "s"} {themName}</span>
       </div>
       <div className="fm__bar"><div className="fm__fill" style={{ width: leftPct + "%" }} /></div>
     </div>
@@ -38,9 +35,8 @@ export function TradeBuilder({ receiver, myCards, theirCards }: { receiver: Part
     n.has(id) ? n.delete(id) : n.add(id);
     setSet(n);
   };
-  const sumOf = (cards: Tile[], set: Set<string>) => cards.filter((c) => set.has(c.ownedId)).reduce((s, c) => s + c.value, 0);
-  const offerVal = sumOf(myCards, offer);
-  const reqVal = sumOf(theirCards, request);
+  const offerN = offer.size;
+  const reqN = request.size;
 
   function send() {
     start(async () => {
@@ -51,9 +47,9 @@ export function TradeBuilder({ receiver, myCards, theirCards }: { receiver: Part
     });
   }
 
-  const Column = ({ title, cards, set, setSet, val }: { title: string; cards: Tile[]; set: Set<string>; setSet: (s: Set<string>) => void; val: number }) => (
+  const Column = ({ title, cards, set, setSet }: { title: string; cards: Tile[]; set: Set<string>; setSet: (s: Set<string>) => void }) => (
     <div className="tb__col">
-      <div className="tb__colhead">{title}<span>${val.toFixed(2)}</span></div>
+      <div className="tb__colhead">{title}<span>{set.size} selected</span></div>
       {cards.length === 0 ? (
         <p className="muted tb__empty">No cards marked for trade.</p>
       ) : (
@@ -62,7 +58,7 @@ export function TradeBuilder({ receiver, myCards, theirCards }: { receiver: Part
             const r = RARITY[c.rarity as Rarity];
             const on = set.has(c.ownedId);
             return (
-              <button key={c.ownedId} className={"tb__tile" + (on ? " on" : "")} onClick={() => toggle(set, setSet, c.ownedId)} title={`${c.name} · ${c.condition} · $${c.value.toFixed(2)}`}>
+              <button key={c.ownedId} className={"tb__tile" + (on ? " on" : "")} onClick={() => toggle(set, setSet, c.ownedId)} title={`${c.name} · ${c.setCode} · ${c.condition}`}>
                 <img src={artUrl(c.cardId, true)} alt={c.name} loading="lazy" onError={(e) => (e.currentTarget.style.visibility = "hidden")} />
                 <span className="tb__tiletag" style={{ color: r?.color }}>{r?.abbr}</span>
                 {on && <span className="tb__check">✓</span>}
@@ -85,12 +81,12 @@ export function TradeBuilder({ receiver, myCards, theirCards }: { receiver: Part
       <div className="content">
         <p className="muted">Pick cards from each side. Only cards marked <b>for trade</b> appear here.</p>
         <div className="tb">
-          <Column title="You give" cards={myCards} set={offer} setSet={setOffer} val={offerVal} />
+          <Column title="You give" cards={myCards} set={offer} setSet={setOffer} />
           <div className="tb__mid"><div className="tb__swap">⇄</div></div>
-          <Column title={`${receiver.name} gives`} cards={theirCards} set={request} setSet={setRequest} val={reqVal} />
+          <Column title={`${receiver.name} gives`} cards={theirCards} set={request} setSet={setRequest} />
         </div>
         <div className="fairness">
-          <FairnessMeter offerVal={offerVal} reqVal={reqVal} themName={receiver.name} />
+          <FairnessMeter offerN={offerN} reqN={reqN} themName={receiver.name} />
           {err && <p className="addfriend__err">{err}</p>}
           <button className="btn-add fairness__send" disabled={pending || (offer.size === 0 && request.size === 0)} onClick={send}>
             {pending ? "Sending…" : "Send trade"}

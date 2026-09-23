@@ -42,7 +42,6 @@ export interface Card {
   rarity: Rarity;
   condition: Condition;
   quantity: number;
-  priceUsd: number;
   forTrade: boolean;
   desc?: string; // card effect / lore text
   archetype?: string | null;
@@ -91,15 +90,6 @@ export const ATTRIBUTE_COLOR: Record<Attribute, string> = {
   DIVINE: "#d4af37",
 };
 
-/** condition → value multiplier (resolves trade valuation, see ARCHITECTURE §13). */
-export const CONDITION_MULT: Record<Condition, number> = {
-  NM: 1,
-  LP: 0.85,
-  MP: 0.7,
-  HP: 0.5,
-  DMG: 0.3,
-};
-
 export function artUrl(id: number, small = false): string {
   // Served via our proxy (app/api/card-image) — caches locally, no client hot-linking.
   return `/api/card-image/${id}${small ? "?s=1" : ""}`;
@@ -110,7 +100,6 @@ export function artUrl(id: number, small = false): string {
 // (the default toLocaleString() varies by machine locale → hydration mismatch).
 const NUM = new Intl.NumberFormat("en-US");
 export const num = (n: number): string => NUM.format(n);
-export const money = (n: number): string => "$" + NUM.format(n);
 
 /** The 5 Exodia pieces — owning all lights up the Insights badge. */
 export const EXODIA_PIECES = [33396948, 70903634, 7902349, 8124921, 44519536];

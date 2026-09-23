@@ -3,7 +3,7 @@
 A private Yu-Gi-Oh! binder + trading app for you and your friends, built from the
 design in [`ARCHITECTURE.md`](./ARCHITECTURE.md). Log in, manage a persistent
 collection backed by the full Yu-Gi-Oh! card database, browse friends' binders,
-trade cards with a fairness meter, and add cards by scanning them. Rarities drive
+trade cards, and add cards by scanning them. Rarities drive
 a holographic foil/tilt effect throughout.
 
 ![login](./login.png)
@@ -28,7 +28,7 @@ They're already friends, and Mai has sent you a trade — log in as `you@vault.g
 - **Binder** — your collection in SQLite. Add a single card (search the whole DB → pick set/rarity) **or a whole product** (the Add dialog's *Product* tab — "Add all" dumps every card from a structure deck / Legendary Collection / Speed Duel box into your binder). Remove, change quantity, toggle "for trade". Rarity holo tiers, Binder Insights, Exodia tracker, filters, focus modal.
 - **Scan** (`/scan`) — point your camera at a card and **Azure gpt-4o-mini vision** reads its name + 8-digit **passcode** (its exact ID) + **set code** (its rarity) → exact DB match → confirm and add. On-device OCR (Tesseract.js) and manual passcode/name entry are fallbacks. *(Phone camera needs HTTPS — see below.)*
 - **Friends** (`/friends`) — send/accept/decline requests by username, **invite links** that auto-friend, see friends with card counts, open a friend's binder at `/u/<username>`.
-- **Trades** (`/trades`) — propose a trade from a friend's binder (`/trades/new?to=<username>`): pick from each side's for-trade cards, see a live **fairness meter** (value-weighted by condition). Accept / decline / cancel, then **two-sided confirm** completes the trade and transfers ownership in-app.
+- **Trades** (`/trades`) — propose a trade from a friend's binder (`/trades/new?to=<username>`): pick from each side's for-trade cards, see a live **fairness meter** comparing how many cards each side gives (the app holds no price data: no source is reliable enough).
 - **Wishlist** (`/wishlist`) — track cards you're hunting; instantly see which friends own them for trade. Wanted cards are outlined in gold on friends' binders.
 - **Sign up** (`/signup`) — open registration, or invite links (`/signup?invite=…`) that connect you to the inviter automatically.
 - **Notifications & Activity** — a notification **bell** with unread counts (friend requests, trades) and an `/feed` activity stream of what friends are doing. Polled, so no websockets required.
@@ -60,17 +60,6 @@ SQLite → Postgres needs no app code changes (same Prisma client, models, and s
 - **Cloudflare Tunnel (recommended — real HTTPS + works off your network):** install once with `winget install Cloudflare.cloudflared`, then run `npm run tunnel` alongside `npm run dev`. It prints a `https://…trycloudflare.com` URL you can open on any phone, anywhere — the camera works there. (Auth uses `trustHost`, so the tunnel domain just works.)
 - **Local cert (same WiFi only):** `npm run dev:lan` generates a self-signed cert (approve the prompt), then open `https://<your-LAN-IP>:3000` and accept the warning.
 
-## Price refresh (cron)
-
-`GET /api/cron/refresh-prices` re-fetches prices from YGOPRODeck for printings
-anyone owns. It's gated by the `x-cron-secret` header (`CRON_SECRET` in `.env`):
-
-```bash
-curl -H "x-cron-secret: $CRON_SECRET" http://localhost:3000/api/cron/refresh-prices
-```
-
-Schedule it weekly with Windows Task Scheduler, cron, or a Vercel Cron job.
-
 ## New card releases (sync)
 
 The card DB is imported once by the seed; new sets and reprints arrive through the sync.
@@ -82,7 +71,7 @@ node prisma/sync-cards.mjs                    # full: new cards + reprints + tag
 node prisma/sync-cards.mjs --since 2026-06-01 # only TCG releases since a date (fast, no reprints)
 ```
 
-or hit the cron route, gated like the price refresh:
+or hit the cron route, gated by the `x-cron-secret` header (`CRON_SECRET` in `.env`; Vercel Cron sends it as a bearer token):
 
 ```bash
 curl -H "x-cron-secret: $CRON_SECRET" http://localhost:3000/api/cron/sync-cards
@@ -110,7 +99,7 @@ Tesseract.js · bcryptjs · Zod · hand-written CSS · PWA · Docker.
 - **Filters** — filter the binder by **archetype**, by **format legality** (TCG Advanced / Goat / Edison — "legal" = not Forbidden), and a **hand-traps** toggle. Archetype + TCG + Goat are real YGOPRODeck data; the Edison list and hand-trap set are curated in `prisma/card-tags.mjs` (run `node prisma/enrich.mjs` after editing). Card modal shows archetype + banlist badges.
 - **In-trade chat** on `/trades/[id]`, plus **live updates** — a Server-Sent-Events stream pushes notifications + page refreshes instantly (no manual reload).
 - **Card images are self-hosted** through `/api/card-image` (proxied + disk-cached, no client hot-linking).
-- **Tests** — `npm test` runs the Vitest suite (trade value/fairness/transfer logic).
+- **Tests** — `npm test` runs the Vitest suite (trade fairness/transfer logic).
 
 ## How v1 relates to the full design
 
@@ -118,7 +107,7 @@ Implemented: auth + signup/invites, persistent collections, full card DB, AI
 scanner, friends, trading + chat, wishlists + matching, notifications + activity
 feed, insights + achievements, real-time (SSE), self-hosted images, mobile/PWA,
 Docker/Postgres, tests. Still ahead in `ARCHITECTURE.md`: multi-instance real-time
-(Redis-backed pub/sub vs. the current in-process bus), card reactions, price-refresh
+(Redis-backed pub/sub vs. the current in-process bus), card reactions
 cron, and Tailwind/shadcn styling.
 
 ## Structure

@@ -1,6 +1,5 @@
 {
   "crons": [
-    { "path": "/api/cron/refresh-prices", "schedule": "0 7 * * *" },
     { "path": "/api/cron/sync-cards", "schedule": "0 6 * * 1" }
   ]
 }

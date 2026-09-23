@@ -18,7 +18,7 @@ export async function searchCards(q: string) {
     where: { name: { contains: needle } },
     take: 16,
     orderBy: { name: "asc" },
-    include: { printings: { orderBy: [{ priceUsd: "desc" }] } },
+    include: { printings: { orderBy: [{ setCode: "asc" }] } },
   });
   return cards.map((c) => ({
     id: c.id,
@@ -29,7 +29,6 @@ export async function searchCards(q: string) {
       setName: p.setName,
       setCode: p.setCode,
       rarity: p.rarity,
-      priceUsd: p.priceUsd,
     })),
   }));
 }

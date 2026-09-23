@@ -1,6 +1,6 @@
 // Shared mapping from a raw YGOPRODeck card record to our Card / CardPrinting rows.
-// Used by the seed, the sync script/cron, and the price cron, so every path stores
-// identical values (rarity strings especially — prices are keyed on them).
+// Used by the seed and the sync script/cron, so every path stores
+// identical values (rarity strings especially — printings are keyed on them).
 import { cardExtras } from "./card-tags.mjs";
 
 export const YGOPRODECK_API = "https://db.ygoprodeck.com/api/v7/cardinfo.php";
@@ -84,8 +84,7 @@ export function toPrintingRows(c) {
     const key = printingKey(c.id, setCode, rarity);
     if (seen.has(key)) continue;
     seen.add(key);
-    const price = parseFloat(s.set_price);
-    rows.push({ cardId: c.id, setName: s.set_name || "Unknown Set", setCode, rarity, priceUsd: Number.isNaN(price) ? null : price });
+    rows.push({ cardId: c.id, setName: s.set_name || "Unknown Set", setCode, rarity });
   }
   return rows;
 }
