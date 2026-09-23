@@ -40,7 +40,7 @@ export function SideNav() {
     <nav className="nav" aria-label="Primary">
       <div className="nav__label">Collection</div>
       <Item href="/" label="Binder" icon={Binder} />
-      <Item href="/scan" label="Scan" icon={Scan} />
+      <Item href="/scan" label="Scan (Beta)" icon={Scan} />
       <Item href="/decks" label="Decks" icon={Deck} />
       <Item href="/insights" label="Insights" icon={Chart} />
       <Item href="/wishlist" label="Wishlist" icon={Star} />

@@ -12,7 +12,7 @@ const Deck = () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" s
 
 const TABS = [
   { href: "/", label: "Binder", icon: Binder },
-  { href: "/scan", label: "Scan", icon: Scan },
+  { href: "/scan", label: "Scan (Beta)", icon: Scan },
   { href: "/decks", label: "Decks", icon: Deck },
   { href: "/friends", label: "Friends", icon: Users },
   { href: "/trades", label: "Trades", icon: Swap },
