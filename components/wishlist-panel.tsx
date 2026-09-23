@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { RARITY, type Rarity, artUrl } from "@/lib/cards";
@@ -72,7 +73,7 @@ export function WishlistPanel({ items }: { items: Item[] }) {
                     ) : (
                       it.matches.map((m, i) => (
                         <span key={i} className="wish__match">
-                          <a href={`/u/${m.username}`}>{m.displayName || m.username}</a> · {RARITY[m.rarity as Rarity]?.abbr ?? m.rarity} {m.condition}
+                          <Link href={`/u/${m.username}`}>{m.displayName || m.username}</Link> · {RARITY[m.rarity as Rarity]?.abbr ?? m.rarity} {m.condition}
                           {i < it.matches.length - 1 ? " · " : ""}
                         </span>
                       ))

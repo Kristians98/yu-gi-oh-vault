@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -12,7 +13,7 @@ type RowData = {
 
 function Row({ r }: { r: RowData }) {
   return (
-    <a className="trow" href={`/trades/${r.id}`}>
+    <Link className="trow" href={`/trades/${r.id}`}>
       <span className="av">{r.initial}</span>
       <div className="trow__main">
         <div className="trow__top">
@@ -24,7 +25,7 @@ function Row({ r }: { r: RowData }) {
         </div>
       </div>
       <span className="trow__arrow">→</span>
-    </a>
+    </Link>
   );
 }
 

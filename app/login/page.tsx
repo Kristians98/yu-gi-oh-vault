@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth, googleEnabled } from "@/auth";
 import { LoginForm } from "@/components/login-form";
@@ -33,7 +34,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         <LoginForm />
         <div className="login__demo">
           <span>
-            New here? <a className="login__link" href="/signup">Create an account</a>
+            New here? <Link className="login__link" href="/signup">Create an account</Link>
           </span>
         </div>
       </div>

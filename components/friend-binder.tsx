@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { type Card } from "@/lib/cards";
 import { RarityCard } from "./rarity-card";
@@ -19,7 +20,7 @@ export function FriendBinder({ ownerName, username, cards, wantedIds = [] }: { o
           <h1 className="page-title">{ownerName}&rsquo;s binder</h1>
         </div>
         <div className="topbar__spacer" />
-        <a className="btn-add" href={`/trades/new?to=${username}`}>Propose trade</a>
+        <Link className="btn-add" href={`/trades/new?to=${username}`}>Propose trade</Link>
       </header>
       <div className="content">
         <div className="friendmeta">

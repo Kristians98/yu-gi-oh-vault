@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth, googleEnabled } from "@/auth";
 import { SignupForm } from "@/components/signup-form";
@@ -35,7 +36,7 @@ export default async function SignupPage({ searchParams }: { searchParams: Promi
         <SignupForm invite={invite} />
         <div className="login__demo">
           <span>
-            Already have an account? <a className="login__link" href="/login">Sign in</a>
+            Already have an account? <Link className="login__link" href="/login">Sign in</Link>
           </span>
         </div>
       </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { acceptFriendRequest, declineFriendRequest, removeFriend, sendFriendRequest } from "@/lib/friends";
@@ -92,8 +93,8 @@ export function FriendsPanel({ friends, requests }: { friends: Friend[]; request
                   <div className="rowlist__name">{f.displayName || f.username} <i>@{f.username}</i></div>
                   <div className="rowlist__meta">{f.cardCount} cards · {f.forTradeCount} for trade</div>
                 </div>
-                <a className="btn-mini" href={`/u/${f.username}`}>Binder</a>
-                <a className="btn-mini btn-accept" href={`/trades/new?to=${f.username}`}>Trade</a>
+                <Link className="btn-mini" href={`/u/${f.username}`}>Binder</Link>
+                <Link className="btn-mini btn-accept" href={`/trades/new?to=${f.username}`}>Trade</Link>
                 <button className="btn-mini btn-danger" disabled={pending} onClick={() => act(() => removeFriend(f.id))}>Remove</button>
               </li>
             ))}

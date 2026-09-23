@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { getFriendIds } from "@/lib/social";
@@ -42,7 +43,7 @@ export default async function FeedPage() {
             {events.map((e) => (
               <li key={e.id} className="feed__item">
                 <span className="av">{(e.user.displayName || e.user.username)[0].toUpperCase()}</span>
-                <div className="feed__body">{e.href ? <a href={e.href}>{e.body}</a> : e.body}</div>
+                <div className="feed__body">{e.href ? <Link href={e.href}>{e.body}</Link> : e.body}</div>
                 <span className="feed__time">{ago(e.createdAt, now)}</span>
               </li>
             ))}

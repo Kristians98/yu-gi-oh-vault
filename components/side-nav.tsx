@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const Binder = () => (
@@ -31,9 +32,9 @@ export function SideNav() {
   const pathname = usePathname();
   const active = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
   const Item = ({ href, label, icon: Icon }: { href: string; label: string; icon: () => React.ReactElement }) => (
-    <a className={"nav__item" + (active(href) ? " nav__item--active" : "")} href={href} aria-current={active(href) ? "page" : undefined}>
+    <Link className={"nav__item" + (active(href) ? " nav__item--active" : "")} href={href} aria-current={active(href) ? "page" : undefined}>
       <Icon /> {label}
-    </a>
+    </Link>
   );
   return (
     <nav className="nav" aria-label="Primary">

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const Binder = () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="3" width="13" height="18" rx="2" /><path d="M17 6h3v15H8" /></svg>);
@@ -25,10 +26,10 @@ export function MobileNav() {
       {TABS.map((t) => {
         const Icon = t.icon;
         return (
-          <a key={t.href} href={t.href} className={"mnav__tab" + (active(t.href) ? " active" : "")} aria-current={active(t.href) ? "page" : undefined}>
+          <Link key={t.href} href={t.href} className={"mnav__tab" + (active(t.href) ? " active" : "")} aria-current={active(t.href) ? "page" : undefined}>
             <Icon />
             <span>{t.label}</span>
-          </a>
+          </Link>
         );
       })}
     </nav>
