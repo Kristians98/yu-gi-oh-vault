@@ -1,59 +1,17 @@
 // Seed: 3 demo users + the real YGOPRODeck card DB + starter collections.
-// Run: node prisma/seed.mjs   (idempotent — skips card import if already seeded)
+// Run: node prisma/seed.mjs   (idempotent — re-running only adds cards that are missing)
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { cardExtras } from "./card-tags.mjs";
+import { syncCards } from "./card-sync.mjs";
 
 const prisma = new PrismaClient();
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const CACHE_DIR = join(__dirname, ".cache");
 const CACHE_FILE = join(CACHE_DIR, "ygoprodeck.json");
 const API = "https://db.ygoprodeck.com/api/v7/cardinfo.php?misc=yes";
-
-function normRarity(s) {
-  const x = (s || "").toLowerCase();
-  if (x.includes("quarter century")) return "QUARTER_CENTURY_SECRET_RARE";
-  if (x.includes("starlight")) return "STARLIGHT_RARE";
-  if (x.includes("ghost")) return "GHOST_RARE";
-  if (x.includes("ultimate")) return "ULTIMATE_RARE";
-  if (x.includes("secret")) return "SECRET_RARE";
-  if (x.includes("ultra")) return "ULTRA_RARE";
-  if (x.includes("super")) return "SUPER_RARE";
-  if (x.includes("rare")) return "RARE";
-  return "COMMON";
-}
-
-function normFrame(frameType, race, type) {
-  const f = (frameType || "").toLowerCase();
-  const t = (type || "").toLowerCase();
-  if (race === "Divine-Beast" || t.includes("divine")) return "divine";
-  if (f.includes("pendulum")) {
-    if (f.includes("normal")) return "normal";
-    if (f.includes("ritual")) return "ritual";
-    if (f.includes("fusion")) return "fusion";
-    if (f.includes("synchro")) return "synchro";
-    if (f.includes("xyz")) return "xyz";
-    return "effect";
-  }
-  if (f.includes("xyz")) return "xyz";
-  if (f.includes("link")) return "link";
-  if (f.includes("synchro")) return "synchro";
-  if (f.includes("fusion")) return "fusion";
-  if (f.includes("ritual")) return "ritual";
-  if (f.includes("spell")) return "spell";
-  if (f.includes("trap")) return "trap";
-  if (f.includes("normal")) return "normal";
-  return "effect";
-}
-
-function buildTypeLine(card, frame) {
-  if (frame === "spell") return `${card.race || "Normal"} Spell`;
-  if (frame === "trap") return `${card.race || "Normal"} Trap`;
-  return [card.race, frame.charAt(0).toUpperCase() + frame.slice(1)].filter(Boolean).join(" / ");
-}
 
 async function loadCards() {
   if (existsSync(CACHE_FILE)) {
@@ -116,49 +74,11 @@ async function main() {
   }
   console.log("Users ready:", Object.keys(users).join(", "));
 
+  // Card DB: the same sync the weekly cron runs (new cards + reprints; owned cards
+  // untouched), fed from the local cache when present. On a fresh DB that is the import.
   const have = await prisma.card.count();
-  if (have > 0) {
-    console.log(`Cards already present (${have}); skipping import.`);
-  } else {
-    const data = await loadCards();
-    const cardRows = [];
-    const printingRows = [];
-    const seen = new Set();
-    for (const c of data) {
-      const frame = normFrame(c.frameType, c.race, c.type);
-      cardRows.push({
-        id: c.id,
-        name: c.name,
-        frame,
-        attribute: c.attribute ?? null,
-        typeLine: buildTypeLine(c, frame),
-        race: c.race ?? null,
-        atk: typeof c.atk === "number" ? c.atk : null,
-        def: typeof c.def === "number" ? c.def : null,
-        level: typeof c.level === "number" ? c.level : typeof c.rank === "number" ? c.rank : typeof c.linkval === "number" ? c.linkval : null,
-        desc: c.desc ?? "",
-        ...cardExtras(c),
-      });
-      for (const s of c.card_sets || []) {
-        const rarity = normRarity(s.set_rarity);
-        const key = `${c.id}|${s.set_code}|${rarity}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        const price = parseFloat(s.set_price);
-        printingRows.push({
-          cardId: c.id,
-          setName: s.set_name || "Unknown Set",
-          setCode: s.set_code || "—",
-          rarity,
-          priceUsd: Number.isNaN(price) ? null : price,
-        });
-      }
-    }
-    console.log(`Inserting ${cardRows.length} cards, ${printingRows.length} printings…`);
-    for (let i = 0; i < cardRows.length; i += 1000) await prisma.card.createMany({ data: cardRows.slice(i, i + 1000) });
-    for (let i = 0; i < printingRows.length; i += 2000) await prisma.cardPrinting.createMany({ data: printingRows.slice(i, i + 2000) });
-    console.log("Card import done.");
-  }
+  console.log(have > 0 ? `Cards already present (${have}); syncing new cards/printings…` : "Empty card table; importing…");
+  await syncCards(prisma, { data: await loadCards(), log: console.log });
 
   async function pickPrinting(cardId, preferRarity) {
     if (preferRarity) {

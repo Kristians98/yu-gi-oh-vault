@@ -71,6 +71,26 @@ curl -H "x-cron-secret: $CRON_SECRET" http://localhost:3000/api/cron/refresh-pri
 
 Schedule it weekly with Windows Task Scheduler, cron, or a Vercel Cron job.
 
+## New card releases (sync)
+
+The card DB is imported once by the seed; new sets and reprints arrive through the sync.
+It only ever **adds** cards and printings (and refreshes banlist/archetype tags), so owned
+collections are never touched. Run it locally:
+
+```bash
+node prisma/sync-cards.mjs                    # full: new cards + reprints + tag refresh (~1 min)
+node prisma/sync-cards.mjs --since 2026-06-01 # only TCG releases since a date (fast, no reprints)
+```
+
+or hit the cron route, gated like the price refresh:
+
+```bash
+curl -H "x-cron-secret: $CRON_SECRET" http://localhost:3000/api/cron/sync-cards
+```
+
+`vercel.json` schedules it weekly (Monday 06:00 UTC). New rarity names YGOPRODeck may
+introduce are folded onto the UI's rarity set in `prisma/card-normalize.mjs`.
+
 ## Sign-up
 
 Invite-only by default — a friend generates an invite link on the Friends page
@@ -106,7 +126,9 @@ cron, and Tailwind/shadcn styling.
 ```
 auth.ts                        Auth.js (credentials + JWT)
 prisma/schema.prisma           dev (SQLite) · schema.postgres.prisma  prod
-prisma/seed.mjs                users + YGOPRODeck import + collections + friends + sample trade
+prisma/seed.mjs                users + YGOPRODeck import (via card-sync) + collections + friends + sample trade
+prisma/card-sync.mjs           add new cards / reprints without touching collections (script + weekly cron)
+prisma/card-normalize.mjs      YGOPRODeck record → Card/CardPrinting rows (shared rarity mapping)
 lib/      prisma · actions (collection) · friends · trades · social · scan · map · cards (config)
 app/      login/ · (app)/{binder, scan, friends, u/[username], trades, trades/new, trades/[id]} · api/auth
 components/  app-shell · side-nav · binder · rarity-card · card-modal · add-card-dialog

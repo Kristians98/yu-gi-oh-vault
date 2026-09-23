@@ -1,29 +1,14 @@
 import { prisma } from "@/lib/prisma";
+import { cronAuthed } from "@/lib/cron-auth";
+import { normRarity } from "@/prisma/card-normalize.mjs";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-// Same rarity normalization the seed uses, so fetched prices key to stored printings.
-function normRarity(s: string): string {
-  const x = (s || "").toLowerCase();
-  if (x.includes("quarter century")) return "QUARTER_CENTURY_SECRET_RARE";
-  if (x.includes("starlight")) return "STARLIGHT_RARE";
-  if (x.includes("ghost")) return "GHOST_RARE";
-  if (x.includes("ultimate")) return "ULTIMATE_RARE";
-  if (x.includes("secret")) return "SECRET_RARE";
-  if (x.includes("ultra")) return "ULTRA_RARE";
-  if (x.includes("super")) return "SUPER_RARE";
-  if (x.includes("rare")) return "RARE";
-  return "COMMON";
-}
-
 // Refreshes prices only for printings someone actually owns (keeps it cheap).
 // Protected by the CRON_SECRET header. Schedule with cron / Task Scheduler / Vercel Cron.
 export async function GET(req: Request) {
-  const secret = process.env.CRON_SECRET;
-  // Accept Vercel Cron's `Authorization: Bearer <CRON_SECRET>` header, or a manual `x-cron-secret`.
-  const authed = !!secret && (req.headers.get("authorization") === `Bearer ${secret}` || req.headers.get("x-cron-secret") === secret);
-  if (!authed) return new Response("forbidden", { status: 403 });
+  if (!cronAuthed(req)) return new Response("forbidden", { status: 403 });
 
   const owned = await prisma.ownedCard.findMany({ select: { printingId: true } });
   const printingIds = [...new Set(owned.map((o) => o.printingId))];
