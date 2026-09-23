@@ -615,11 +615,16 @@ body {
   .user { margin-top: 0; border: none; padding: 4px; gap: 8px; }
   .user__id { display: none; }
   .bell__menu { width: min(320px, calc(100vw - 32px)); }
-  .content { padding-bottom: 92px; }
+  .content { padding-bottom: 28px; }
 
+  /* App-shell layout: header / scrolling content / tab bar as three grid rows of one
+     screen. Nothing is position:fixed, so iOS Safari's collapsing toolbar and rubber-band
+     overscroll can no longer move the bar — it is simply the bottom row of the layout. */
+  .shell { height: 100vh; height: 100dvh; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; }
+  .main { min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; }
   .mnav {
     display: flex;
-    position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
+    position: static; z-index: 50;
     background: rgba(15, 11, 24, 0.97);
     backdrop-filter: blur(10px);
     border-top: 1px solid var(--line);
@@ -635,7 +640,7 @@ body {
 @media (max-width: 540px) {
   .topbar { padding: 16px 16px 12px; }
   .topbar .page-title { font-size: 22px; }
-  .content { padding: 18px 16px 92px; }
+  .content { padding: 18px 16px 28px; }
   .btn-add { padding: 9px 13px; }
   .insights { flex-direction: column; }
   .stat { border-right: none; border-bottom: 1px solid var(--line-soft); }
@@ -723,7 +728,7 @@ body {
   .search { flex: 1 1 60%; min-width: 0; }
   .btn-add { flex: 0 0 auto; }
 
-  .content { padding: 14px 16px 96px; gap: 16px; }
+  .content { padding: 14px 16px 28px; gap: 16px; }
   .insights-wrap { display: none; } /* cards-first; full stats live on /insights */
 
   .addfriend { flex-wrap: wrap; }
@@ -812,7 +817,7 @@ body {
    (desktop) or a sheet over the camera (phone). Nothing on this page scrolls except
    the panel's own content. */
 .shell:has(.scanpage) { height: 100dvh; overflow: hidden; }
-.shell:has(.scanpage) .main { min-height: 0; }
+.shell:has(.scanpage) .main { min-height: 0; overflow: hidden; }
 body:has(.scanpage) { overflow: hidden; }
 .scanpage { flex: 1; min-height: 0; position: relative; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(300px, 0.75fr); gap: 20px; padding: 0 34px 24px; }
 .scan__stage { position: relative; min-height: 0; border-radius: var(--r); overflow: hidden; background: #000; border: 1px solid var(--line-soft); }
@@ -843,14 +848,13 @@ body:has(.scanpage) { overflow: hidden; }
 .scan__ai { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.04em; color: var(--trade); margin-top: 14px; }
 .scan__ai--off { color: var(--muted-2); }
 @media (max-width: 880px) {
-  .shell:has(.scanpage) { grid-template-rows: auto minmax(0, 1fr); } /* header keeps its natural height; the stage takes the rest */
   .shell:has(.scanpage) .topbar { display: none; } /* the stage chip carries the title */
   .mnav__tab { min-width: 0; }
   .mnav__tab span { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .scanpage { display: flex; flex-direction: column; padding: 8px 10px calc(74px + env(safe-area-inset-bottom)); gap: 0; }
+  .scanpage { display: flex; flex-direction: column; padding: 8px 10px 10px; gap: 0; }
   .scan__stage { flex: 1; }
   .scan__panel {
-    position: absolute; left: 10px; right: 10px; bottom: calc(82px + env(safe-area-inset-bottom)); z-index: 6;
+    position: absolute; left: 10px; right: 10px; bottom: 18px; z-index: 6;
     max-height: 64%; padding: 18px 16px 16px; box-shadow: 0 -18px 50px -20px rgba(0, 0, 0, 0.9);
     transform: translateY(calc(100% + 120px)); transition: transform 0.28s cubic-bezier(0.2, 0.7, 0.2, 1);
   }
