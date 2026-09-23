@@ -4,6 +4,7 @@ import { useCallback, useRef, type CSSProperties, type PointerEvent } from "reac
 import { type Card, RARITY, FRAME_COLOR, artUrl, money } from "@/lib/cards";
 
 const MAX_TILT = 15;
+const GLINTS = [1, 2, 3, 4, 5, 6] as const;
 
 export function RarityCard({
   card,
@@ -24,6 +25,10 @@ export function RarityCard({
   // Grid tiles use the small art (≈6× fewer decoded pixels → far less RAM); the
   // enlarged modal passes `full` for crisp detail.
   const thumb = !full;
+  // Starlight Rare gets a set of independent "glitter flake" layers — see .card__glint in
+  // globals.css. Each layer is a sparse grid of flakes lit by its own light spot, so which
+  // flakes flash changes with the tilt instead of every star under the cursor lighting up.
+  const glitterField = card.rarity === "STARLIGHT_RARE";
 
   const set = (k: string, v: string) => ref.current?.style.setProperty(k, v);
 
@@ -80,6 +85,7 @@ export function RarityCard({
       <div className="card__layer card__glitter" />
       <div className="card__layer card__glare" />
       <div className="card__layer card__sparkle" />
+      {glitterField && GLINTS.map((g) => <div key={g} className="card__layer card__glint" data-g={g} />)}
       <div className="card__layer card__frame" />
 
       {card.quantity > 1 && <span className="card__tag card__tag--qty">×{card.quantity}</span>}
