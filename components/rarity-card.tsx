@@ -75,7 +75,11 @@ export function RarityCard({
         className="card__art"
         src={artUrl(card.id, thumb)}
         alt={card.name}
-        loading="lazy"
+        // LazyCard already gates mounting to ~1.2 screens around the visible area; native
+        // lazy loading on top of that would delay the fetch until the card is nearly on
+        // screen and cause pop-in, so fetch as soon as the card mounts.
+        loading="eager"
+        decoding="async"
         draggable={false}
         onError={(e) => {
           e.currentTarget.style.display = "none";
