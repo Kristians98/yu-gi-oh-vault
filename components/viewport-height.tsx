@@ -17,7 +17,10 @@ export function ViewportHeight() {
       return !!el && (/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable);
     };
     const apply = () => {
-      let h = Math.round(vv?.height ?? window.innerHeight);
+      // Pinch-zoom shrinks visualViewport.height (it is the zoomed-in slice, in CSS px) but
+      // raises .scale by the same factor; height × scale is the unzoomed layout height, so
+      // zooming no longer resizes the shell and moves the bars.
+      let h = Math.round((vv?.height ?? window.innerHeight) * (vv?.scale ?? 1));
       // The on-screen keyboard shrinks the visual viewport. Reflowing the whole shell to
       // that height makes the camera stage collapse and the tab bar jump above the
       // keyboard, so while a field is focused we keep the last full height and let iOS pan
@@ -37,7 +40,7 @@ export function ViewportHeight() {
         const os = navigator.userAgent.match(/OS (\d+_\d+)/)?.[0]?.replace("_", ".") ?? navigator.userAgent.slice(0, 40);
         setDebug(
           [
-            `vv.h ${vv ? Math.round(vv.height) : "n/a"} · inner ${window.innerHeight} · screen ${screen.height}${editing() ? " · kbd" : ""}`,
+            `vv.h ${vv ? Math.round(vv.height) : "n/a"} ×${vv ? vv.scale.toFixed(2) : "1"} · inner ${window.innerHeight} · screen ${screen.height}${editing() ? " · kbd" : ""}`,
             `body ${r("body")} · shell ${r(".shell")}`,
             `header ${r(".sidebar")} · mnav ${r(".mnav")}`,
             `--vvh ${getComputedStyle(document.documentElement).getPropertyValue("--vvh") || "unset"} · scrollY ${Math.round(window.scrollY)}`,
