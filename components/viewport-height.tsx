@@ -14,6 +14,8 @@ export function ViewportHeight() {
     const apply = () => {
       const h = Math.round(vv?.height ?? window.innerHeight);
       if (h > 0) document.documentElement.style.setProperty("--vvh", `${h}px`);
+      const header = document.querySelector(".sidebar")?.getBoundingClientRect().height;
+      if (header) document.documentElement.style.setProperty("--header-h", `${Math.round(header)}px`);
       if (wantDebug) {
         const r = (sel: string) => {
           const el = document.querySelector(sel);

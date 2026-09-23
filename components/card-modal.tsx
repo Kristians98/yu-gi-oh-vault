@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
+import { useModalLock } from "./use-modal-lock";
 import { type Card, type Condition, RARITY, num } from "@/lib/cards";
 import { RarityCard } from "./rarity-card";
 import { removeOwnedCard, setForTrade, setQuantity } from "@/lib/actions";
@@ -29,15 +30,7 @@ export function CardModal({ card, onClose, onChanged, readOnly }: { card: Card; 
   const [canTilt, setCanTilt] = useState(false);
   const [tilting, setTilting] = useState(false);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    document.addEventListener("keydown", onKey);
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = "";
-    };
-  }, [onClose]);
+  useModalLock(onClose);
 
   useEffect(() => {
     if (card.ownedId) getReactions(card.ownedId).then(setReactions).catch(() => {});

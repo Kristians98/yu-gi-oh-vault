@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
+import { useModalLock } from "./use-modal-lock";
 import { useRouter } from "next/navigation";
 import { RARITY, type Rarity, type Condition, artUrl } from "@/lib/cards";
 import { addSet, addToCollection, searchCards, searchSets } from "@/lib/actions";
@@ -35,15 +36,7 @@ export function AddCardDialog({ onClose }: { onClose: () => void }) {
   const cardTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const setTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    document.addEventListener("keydown", onKey);
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = "";
-    };
-  }, [onClose]);
+  useModalLock(onClose);
 
   useEffect(() => {
     if (cardTimer.current) clearTimeout(cardTimer.current);
