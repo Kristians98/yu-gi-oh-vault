@@ -124,7 +124,7 @@ export function Binder({ initialCards }: { initialCards: Card[] }) {
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search your binder…" aria-label="Search your binder" />
         </label>
         <input ref={fileRef} type="file" accept=".csv,text/csv" hidden onChange={onImportFile} />
-        <button className="btn-ghost" onClick={() => fileRef.current?.click()} disabled={importing} title="Import a collection CSV">
+        <button className="btn-ghost" onClick={() => fileRef.current?.click()} disabled={importing} title="Import a CSV — only Name and Qty columns are required; Set Code, Rarity and Condition are optional">
           <UploadIcon /> <span className="btn-ghost__label">{importing ? "Importing…" : "Import"}</span>
         </button>
         <button className="btn-ghost" onClick={exportCsv} disabled={!initialCards.length} title="Download your collection as CSV">

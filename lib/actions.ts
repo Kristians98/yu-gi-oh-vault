@@ -157,9 +157,11 @@ function parseCsvRows(text: string): string[][] {
 
 export type ImportResult = { rows: number; imported: number; updated: number; skipped: number; merged: number; errors: string[] };
 
-/** Import a collection CSV (the format the binder's Export button produces). Resolves each
- *  row to a printing by Set Code (+rarity) then card name, and SETS the owned quantity —
- *  so re-importing the same file is idempotent (no double-counting). */
+/** Import a collection CSV. Only "Name" and "Qty" are required; "Set Code", "Rarity" and
+ *  "Condition" are optional and pin the exact printing/condition when present (the Export
+ *  button writes all of them). Each row resolves to a printing by Set Code (+rarity), else
+ *  by card name; rows landing on the same printing+condition add up; the total is then SET
+ *  on the owned row, so re-importing the same file is idempotent (no double-counting). */
 export async function importCollection(csv: string): Promise<ImportResult> {
   const userId = await requireUser();
   const rows = parseCsvRows(csv || "");
