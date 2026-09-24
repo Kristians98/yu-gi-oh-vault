@@ -19,9 +19,13 @@ export function ProfileMenu({ initial, name, handle, logout }: { initial: string
     const r = btnRef.current?.getBoundingClientRect();
     if (!r) return;
     const vw = window.innerWidth;
+    const vh = window.innerHeight;
     const width = Math.min(260, vw - 16);
-    const left = Math.max(8, Math.min(r.right - width, vw - width - 8));
-    setPos({ top: r.bottom + 8, left, width });
+    // Desktop: the avatar sits at the bottom of the sidebar → open upward (anchor the menu's
+    // bottom edge above the button). Phone header: open downward as usual.
+    const upward = r.top > vh / 2;
+    const left = Math.max(8, Math.min(upward ? r.left : r.right - width, vw - width - 8));
+    setPos(upward ? { bottom: vh - r.top + 8, left, width } : { top: r.bottom + 8, left, width });
   }
   useEffect(() => {
     if (!open) return;
