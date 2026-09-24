@@ -551,6 +551,15 @@ body {
 .btn-accept { color: var(--void); background: var(--gold); border-color: var(--gold); font-weight: 700; }
 .btn-accept:hover { color: var(--void); filter: brightness(1.06); }
 .btn-danger { color: #ff8d7a; border-color: rgba(255, 120, 110, 0.3); }
+/* Confirmation dialog (Clear binder) */
+.confirm { width: 100%; max-width: 440px; background: linear-gradient(180deg, var(--vault), var(--void-2)); border: 1px solid var(--line); border-radius: 18px; padding: 24px 24px 20px; box-shadow: 0 40px 90px -30px rgba(0, 0, 0, 0.9); animation: rise 0.28s cubic-bezier(0.2, 0.7, 0.2, 1); }
+.confirm__title { font-family: var(--font-display); font-size: 21px; font-weight: 600; margin-bottom: 10px; }
+.confirm__body { color: var(--muted); font-size: 14px; line-height: 1.55; }
+.confirm__body b { color: var(--bone); }
+.confirm__actions { display: flex; align-items: center; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+.confirm__spacer { flex: 1; }
+.confirm__danger { background: linear-gradient(135deg, #ff8d7a, #d9533f); color: #fff; box-shadow: 0 8px 24px -10px rgba(255, 120, 110, 0.7); }
+@media (max-width: 540px) { .confirm__actions > .btn-ghost:first-child { flex: 1 1 100%; justify-content: center; } .confirm__spacer { display: none; } .confirm__actions > .btn-ghost:nth-child(3), .confirm__danger { flex: 1; justify-content: center; } }
 .btn-danger:hover { background: rgba(255, 120, 110, 0.12); border-color: rgba(255, 120, 110, 0.6); color: #ff8d7a; }
 
 /* Friends */

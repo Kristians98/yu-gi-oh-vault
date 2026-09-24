@@ -3,8 +3,9 @@
 import { useMemo, useRef, useState, useTransition, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import { type Card, type Rarity, RARITY } from "@/lib/cards";
-import { importCollection } from "@/lib/actions";
+import { importCollection, clearCollection } from "@/lib/actions";
 import { LazyCard } from "./lazy-card";
+import { useModalLock } from "./use-modal-lock";
 import { CardModal } from "./card-modal";
 import { InsightsStrip } from "./insights-strip";
 import { FilterBar } from "./filter-bar";
@@ -19,6 +20,11 @@ const SearchIcon = () => (
 const PlusIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
     <path d="M12 5v14M5 12h14" />
+  </svg>
+);
+const TrashIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />
   </svg>
 );
 const DownloadIcon = () => (
@@ -56,6 +62,8 @@ export function Binder({ initialCards }: { initialCards: Card[] }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [importing, startImport] = useTransition();
   const [importMsg, setImportMsg] = useState("");
+  const [clearing, setClearing] = useState(false); // confirm dialog open
+  const [wiping, startWipe] = useTransition();
 
   const rarities = useMemo(
     () => Array.from(new Set(initialCards.map((c) => c.rarity))).sort((a, b) => RARITY[b].tier - RARITY[a].tier),
@@ -95,6 +103,15 @@ export function Binder({ initialCards }: { initialCards: Card[] }) {
     URL.revokeObjectURL(url);
   }
 
+  function clearBinder() {
+    startWipe(async () => {
+      const n = await clearCollection();
+      setClearing(false);
+      setImportMsg(`Cleared the binder — ${n} entr${n === 1 ? "y" : "ies"} removed.`);
+      router.refresh();
+    });
+  }
+
   function onImportFile(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = ""; // allow re-selecting the same file
@@ -129,6 +146,9 @@ export function Binder({ initialCards }: { initialCards: Card[] }) {
         </button>
         <button className="btn-ghost" onClick={exportCsv} disabled={!initialCards.length} title="Download your collection as CSV">
           <DownloadIcon /> <span className="btn-ghost__label">Export</span>
+        </button>
+        <button className="btn-ghost btn-danger" onClick={() => setClearing(true)} disabled={!initialCards.length} title="Remove every card from your binder">
+          <TrashIcon /> <span className="btn-ghost__label">Clear</span>
         </button>
         <button className="btn-add" onClick={() => setAdding(true)}>
           <PlusIcon /> Add card
@@ -177,6 +197,36 @@ export function Binder({ initialCards }: { initialCards: Card[] }) {
 
       {selected && <CardModal card={selected} onClose={() => setSelected(null)} onChanged={() => router.refresh()} />}
       {adding && <AddCardDialog onClose={() => setAdding(false)} />}
+      {clearing && (
+        <ConfirmClear
+          count={initialCards.reduce((n, c) => n + c.quantity, 0)}
+          busy={wiping}
+          onExport={exportCsv}
+          onCancel={() => setClearing(false)}
+          onConfirm={clearBinder}
+        />
+      )}
     </>
+  );
+}
+
+/** Destructive confirmation for "Clear binder": states the scope, offers an export first. */
+function ConfirmClear({ count, busy, onExport, onCancel, onConfirm }: { count: number; busy: boolean; onExport: () => void; onCancel: () => void; onConfirm: () => void }) {
+  useModalLock(onCancel);
+  return (
+    <div className="modal-backdrop" onClick={onCancel} role="dialog" aria-modal="true" aria-label="Clear binder">
+      <div className="confirm" onClick={(e) => e.stopPropagation()}>
+        <h2 className="confirm__title">Clear your binder?</h2>
+        <p className="confirm__body">
+          This removes all <b>{count}</b> cop{count === 1 ? "y" : "ies"} from your binder. It can&rsquo;t be undone — download a CSV first if you might want them back.
+        </p>
+        <div className="confirm__actions">
+          <button className="btn-ghost" onClick={onExport}><DownloadIcon /> Export CSV</button>
+          <span className="confirm__spacer" />
+          <button className="btn-ghost" onClick={onCancel} disabled={busy}>Cancel</button>
+          <button className="btn-add confirm__danger" onClick={onConfirm} disabled={busy}>{busy ? "Clearing…" : "Clear binder"}</button>
+        </div>
+      </div>
+    </div>
   );
 }

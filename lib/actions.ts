@@ -61,6 +61,15 @@ export async function removeOwnedCard(ownedId: string) {
   revalidatePath("/");
 }
 
+/** Remove EVERY card from the caller's binder. Irreversible — the UI confirms first and
+ *  offers an export. Returns how many owned rows were deleted. */
+export async function clearCollection(): Promise<number> {
+  const userId = await requireUser();
+  const { count } = await prisma.ownedCard.deleteMany({ where: { userId } });
+  revalidatePath("/");
+  return count;
+}
+
 export async function setForTrade(ownedId: string, forTrade: boolean) {
   const userId = await requireUser();
   await prisma.ownedCard.updateMany({ where: { id: ownedId, userId }, data: { forTrade } });
