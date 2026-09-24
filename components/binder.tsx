@@ -102,10 +102,11 @@ export function Binder({ initialCards }: { initialCards: Card[] }) {
     setImportMsg("");
     startImport(async () => {
       const res = await importCollection(await file.text());
-      const parts = [`imported ${res.imported}`];
-      if (res.updated) parts.push(`updated ${res.updated}`);
-      if (res.skipped) parts.push(`skipped ${res.skipped}`);
-      setImportMsg(`Import — ${parts.join(" · ")}${res.errors[0] ? `. ${res.errors[0]}` : ""}`);
+      const parts = [`${res.imported} new`];
+      if (res.updated) parts.push(`${res.updated} already in binder (quantities set)`);
+      if (res.merged) parts.push(`${res.merged} repeated rows merged`);
+      if (res.skipped) parts.push(`${res.skipped} not matched`);
+      setImportMsg(`Imported ${res.rows} rows → ${parts.join(" · ")}${res.errors[0] ? `. ${res.errors[0]}` : ""}`);
       router.refresh();
     });
   }

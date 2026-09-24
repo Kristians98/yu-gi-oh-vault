@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { containsCI } from "@/lib/db-text";
+import { containsCI, inCI } from "@/lib/db-text";
 import { importCardsByName } from "@/lib/card-import";
 import { logActivity } from "@/lib/notify";
 
@@ -155,7 +155,7 @@ function parseCsvRows(text: string): string[][] {
   return rows;
 }
 
-export type ImportResult = { imported: number; updated: number; skipped: number; errors: string[] };
+export type ImportResult = { rows: number; imported: number; updated: number; skipped: number; merged: number; errors: string[] };
 
 /** Import a collection CSV (the format the binder's Export button produces). Resolves each
  *  row to a printing by Set Code (+rarity) then card name, and SETS the owned quantity —
@@ -163,12 +163,13 @@ export type ImportResult = { imported: number; updated: number; skipped: number;
 export async function importCollection(csv: string): Promise<ImportResult> {
   const userId = await requireUser();
   const rows = parseCsvRows(csv || "");
-  if (rows.length < 2) return { imported: 0, updated: 0, skipped: 0, errors: ["No rows found in the file."] };
+  const none = (msg: string): ImportResult => ({ rows: 0, imported: 0, updated: 0, skipped: 0, merged: 0, errors: [msg] });
+  if (rows.length < 2) return none("No rows found in the file.");
 
   const header = rows[0].map((h) => h.trim().toLowerCase());
   const col = (name: string) => header.indexOf(name);
   const iName = col("name"), iQty = col("qty"), iCode = col("set code"), iRar = col("rarity"), iCond = col("condition"), iTrade = col("for trade");
-  if (iName < 0) return { imported: 0, updated: 0, skipped: 0, errors: ['CSV is missing a "Name" column.'] };
+  if (iName < 0) return none('CSV is missing a "Name" column.');
 
   type Rec = { name: string; qty: number; setCode: string; rarity: string; condition: string; forTrade: boolean };
   const records: Rec[] = [];
@@ -188,13 +189,13 @@ export async function importCollection(csv: string): Promise<ImportResult> {
       forTrade: iTrade >= 0 ? /^(y|yes|true|1)$/i.test((c[iTrade] || "").trim()) : false,
     });
   }
-  if (!records.length) return { imported: 0, updated: 0, skipped: 0, errors: ["No card rows found."] };
+  if (!records.length) return none("No card rows found.");
 
   // Batch-resolve printings (one query, not one per row).
   const codes = [...new Set(records.map((r) => r.setCode).filter(Boolean))];
   const names = [...new Set(records.map((r) => r.name))];
   const printings = await prisma.cardPrinting.findMany({
-    where: { OR: [{ setCode: { in: codes } }, { card: { name: { in: names } } }] },
+    where: { OR: [{ setCode: { in: codes } }, { card: { name: inCI(names) } }] },
     select: { id: true, setCode: true, rarity: true, card: { select: { name: true } } },
   });
   const byCodeRar = new Map<string, string>(), byCode = new Map<string, string>(), byNameRar = new Map<string, string>(), byName = new Map<string, string>();
@@ -220,15 +221,24 @@ export async function importCollection(csv: string): Promise<ImportResult> {
 
   const errors: string[] = [];
   let skipped = 0;
-  const toCreate = new Map<string, { userId: string; printingId: string; condition: string; quantity: number; forTrade: boolean }>();
-  const toUpdate = new Map<string, { id: string; quantity: number; forTrade: boolean }>();
+  let merged = 0;
+  // Several rows can land on the same printing + condition (a name-only list often repeats
+  // a card once per copy). Their quantities ADD UP; the final total is then SET on the row.
+  const totals = new Map<string, { printingId: string; condition: string; quantity: number; forTrade: boolean }>();
   for (const r of records) {
     const printingId = resolve(r);
     if (!printingId) { skipped++; if (errors.length < 12) errors.push(`Couldn't match "${r.name}"${r.setCode ? ` (${r.setCode})` : ""}.`); continue; }
     const key = `${printingId}|${r.condition}`;
+    const t = totals.get(key);
+    if (t) { t.quantity += r.qty; t.forTrade = t.forTrade || r.forTrade; merged++; }
+    else totals.set(key, { printingId, condition: r.condition, quantity: r.qty, forTrade: r.forTrade });
+  }
+  const toCreate = new Map<string, { userId: string; printingId: string; condition: string; quantity: number; forTrade: boolean }>();
+  const toUpdate = new Map<string, { id: string; quantity: number; forTrade: boolean }>();
+  for (const [key, t] of totals) {
     const existingId = ownedKey.get(key);
-    if (existingId) toUpdate.set(key, { id: existingId, quantity: r.qty, forTrade: r.forTrade });
-    else toCreate.set(key, { userId, printingId, condition: r.condition, quantity: r.qty, forTrade: r.forTrade });
+    if (existingId) toUpdate.set(key, { id: existingId, quantity: t.quantity, forTrade: t.forTrade });
+    else toCreate.set(key, { userId, ...t });
   }
 
   const creates = [...toCreate.values()];
@@ -239,5 +249,5 @@ export async function importCollection(csv: string): Promise<ImportResult> {
   }
 
   revalidatePath("/");
-  return { imported: creates.length, updated: updates.length, skipped, errors };
+  return { rows: records.length, imported: creates.length, updated: updates.length, skipped, merged, errors };
 }
