@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition, type ChangeEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useMemo, useRef, useState, useTransition, type ChangeEvent, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { type Card, type Rarity, RARITY } from "@/lib/cards";
 import { importCollection, clearCollection } from "@/lib/actions";
 import { LazyCard } from "./lazy-card";
@@ -20,11 +20,6 @@ const SearchIcon = () => (
 const PlusIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
     <path d="M12 5v14M5 12h14" />
-  </svg>
-);
-const TrashIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />
   </svg>
 );
 const DownloadIcon = () => (
@@ -63,6 +58,14 @@ export function Binder({ initialCards }: { initialCards: Card[] }) {
   const [importing, startImport] = useTransition();
   const [importMsg, setImportMsg] = useState("");
   const [clearing, setClearing] = useState(false); // confirm dialog open
+  // "Clear binder…" lives in the profile menu (any page) and arrives here as /?clear=1.
+  const params = useSearchParams();
+  useEffect(() => {
+    if (params.get("clear") === "1") {
+      if (initialCards.length) setClearing(true);
+      router.replace("/");
+    }
+  }, [params, initialCards.length, router]);
   const [wiping, startWipe] = useTransition();
 
   const rarities = useMemo(
@@ -146,9 +149,6 @@ export function Binder({ initialCards }: { initialCards: Card[] }) {
         </button>
         <button className="btn-ghost" onClick={exportCsv} disabled={!initialCards.length} title="Download your collection as CSV">
           <DownloadIcon /> <span className="btn-ghost__label">Export</span>
-        </button>
-        <button className="btn-ghost btn-danger" onClick={() => setClearing(true)} disabled={!initialCards.length} title="Remove every card from your binder">
-          <TrashIcon /> <span className="btn-ghost__label">Clear</span>
         </button>
         <button className="btn-add" onClick={() => setAdding(true)}>
           <PlusIcon /> Add card

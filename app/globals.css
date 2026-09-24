@@ -447,8 +447,15 @@ body {
    Sign-in user chip / sign-out
    ============================================================ */
 .user__id { flex: 1; min-width: 0; }
-.user__logout { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; color: var(--muted); border: 1px solid var(--line-soft); transition: all 0.15s; }
-.user__logout:hover { color: var(--bone); border-color: var(--gold); background: var(--line-soft); }
+.user__avatar--btn { cursor: pointer; border: 2px solid transparent; transition: border-color 0.15s, transform 0.15s; }
+.user__avatar--btn:hover, .user__avatar--btn[aria-expanded="true"] { border-color: var(--gold-bright); transform: translateY(-1px); }
+/* profile menu (shares the bell menu shell) */
+.pmenu__who { padding: 12px 14px; border-bottom: 1px solid var(--line-soft); }
+.pmenu__item { width: 100%; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 11px 14px; text-align: left; font-size: 13.5px; color: var(--bone); border-bottom: 1px solid var(--line-soft); }
+.pmenu__item span { font-family: var(--font-mono); font-size: 10.5px; color: var(--muted-2); }
+.pmenu__item:hover { background: var(--line-soft); }
+.pmenu form:last-child .pmenu__item { border-bottom: none; }
+.pmenu__item--danger { color: #ff8d7a; }
 
 /* Add-card button in the topbar */
 .btn-add { display: inline-flex; align-items: center; gap: 7px; font-family: var(--font-body); font-weight: 600; font-size: 13.5px; color: var(--void); background: linear-gradient(135deg, var(--gold-bright), var(--gold)); border-radius: 11px; padding: 10px 16px; box-shadow: 0 6px 18px -8px rgba(217, 180, 91, 0.7); transition: transform 0.15s, box-shadow 0.15s; white-space: nowrap; }

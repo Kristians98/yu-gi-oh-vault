@@ -6,12 +6,7 @@ import { MobileNav } from "./mobile-nav";
 import { Realtime } from "./realtime";
 import { ScrollReset } from "./scroll-reset";
 import { ViewportHeight } from "./viewport-height";
-
-const IconLogout = () => (
-  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
-  </svg>
-);
+import { ProfileMenu } from "./profile-menu";
 
 export function AppShell({
   user,
@@ -45,16 +40,11 @@ export function AppShell({
         <SideNav />
 
         <div className="user">
-          <div className="user__avatar">{initial}</div>
+          <ProfileMenu initial={initial} name={name} handle={user.username || "duelist"} logout={logout} />
           <div className="user__id">
             <div className="user__name">{name}</div>
             <div className="user__handle">@{user.username || "duelist"}</div>
           </div>
-          <form action={logout}>
-            <button className="user__logout" type="submit" aria-label="Sign out" title="Sign out">
-              <IconLogout />
-            </button>
-          </form>
         </div>
       </aside>
 
