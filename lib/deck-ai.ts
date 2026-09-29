@@ -12,6 +12,16 @@ export function deckAiConfigured(): boolean {
   return Boolean(ENDPOINT && KEY && DEPLOYMENT);
 }
 
+/** `reasoning_effort` to send for a deployment: env override, else "low" for GPT-5 / o-series,
+ *  else nothing (gpt-4o and friends reject the parameter). */
+export function reasoningEffortFor(deployment: string | undefined): string | null {
+  const env = (process.env.AZURE_AI_DECK_REASONING || "").trim().toLowerCase();
+  if (env === "off" || env === "none") return null;
+  if (["minimal", "low", "medium", "high"].includes(env)) return env;
+  const d = (deployment || "").toLowerCase();
+  return /gpt-5|^o\d/.test(d) ? "low" : null;
+}
+
 // Pull the first balanced {...} object out of a model reply (it may wrap JSON in
 // markdown fences or add prose before/after — a greedy regex breaks on that).
 function extractFirstJson(text: string): string | null {
@@ -123,7 +133,7 @@ export async function buildDeckJSON(opts: {
       : `Build the deck now for ${fmt}.`;
 
   const url = `${ENDPOINT}/models/chat/completions?api-version=${API_VERSION}`;
-  const body = {
+  const body: Record<string, unknown> = {
     model: DEPLOYMENT,
     // GPT-5 / o-series reject `max_tokens` (use `max_completion_tokens`) and only allow
     // the default temperature, so we omit temperature. Generous cap leaves room for the
@@ -134,6 +144,11 @@ export async function buildDeckJSON(opts: {
       { role: "user", content: user },
     ],
   };
+  // Reasoning models: a 600-card pool + a 40-card answer at default effort can run long enough
+  // for Azure to give up with a 500. Low effort is plenty for deck building and ~3x faster.
+  // AZURE_AI_DECK_REASONING overrides (minimal|low|medium|high, or "off" to send nothing).
+  const reasoning = reasoningEffortFor(DEPLOYMENT);
+  if (reasoning) body.reasoning_effort = reasoning;
 
   // Azure can answer 429 (tokens-per-minute quota — e.g. two duelists drawing at once) or a
   // transient 5xx. Retry those a couple of times, honouring Retry-After, while staying inside
@@ -143,10 +158,12 @@ export async function buildDeckJSON(opts: {
   let lastErr = "";
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
+      const payload = JSON.stringify(body);
+      if (attempt === 0) console.info("Azure deck request", { deployment: DEPLOYMENT, reasoning: body.reasoning_effort ?? null, chars: payload.length });
       res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json", "api-key": KEY as string },
-        body: JSON.stringify(body),
+        body: payload,
         signal: AbortSignal.timeout(50_000),
       });
     } catch (e) {
@@ -158,12 +175,19 @@ export async function buildDeckJSON(opts: {
     if (res) {
       const text = (await res.text().catch(() => "")).slice(0, 300);
       console.error("Azure deck HTTP", res.status, text);
+      // A deployment that doesn't know `reasoning_effort` answers 400 — drop it and go again.
+      if (res.status === 400 && body.reasoning_effort && /reasoning_effort/i.test(text)) {
+        delete body.reasoning_effort;
+        res = null;
+        continue;
+      }
       const retryable = res.status === 429 || res.status >= 500;
       lastErr = res.status === 429 ? "Azure rate limit (429) — the deployment's tokens-per-minute quota is used up" : `Azure returned HTTP ${res.status}${text ? ` — ${text.replace(/\s+/g, " ").slice(0, 140)}` : ""}`;
       if (!retryable) return { deck: null, error: lastErr };
       const after = Number(res.headers.get("retry-after"));
-      const wait = Math.min(15_000, (Number.isFinite(after) && after > 0 ? after * 1000 : 4000 * (attempt + 1)));
-      if (Date.now() - startedAt + wait > 30_000) break; // no room left for another full attempt
+      // 5xx: Azure's transient errors usually clear within seconds; give them a real pause.
+      const wait = Math.min(15_000, Number.isFinite(after) && after > 0 ? after * 1000 : res.status === 429 ? 4000 * (attempt + 1) : 6000 * (attempt + 1));
+      if (Date.now() - startedAt + wait > 32_000) break; // no room left for another full attempt
       await new Promise((r) => setTimeout(r, wait));
       res = null;
       continue;

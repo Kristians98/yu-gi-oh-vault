@@ -44,6 +44,7 @@ well within Supabase's 500 MB free limit.)
    AZURE_AI_KEY              (rotate this — it was shared in chat)
    AZURE_AI_DEPLOYMENT       gpt-4o-mini      (scanner)
    AZURE_AI_DECK_DEPLOYMENT  gpt-5.4          (deck builder)
+   AZURE_AI_DECK_REASONING   low              (optional; minimal|low|medium|high|off — GPT-5/o-series default to low)
    AZURE_AI_API_VERSION      2024-05-01-preview
    CRON_SECRET               openssl rand -hex 16
    ALLOW_OPEN_SIGNUP         false
