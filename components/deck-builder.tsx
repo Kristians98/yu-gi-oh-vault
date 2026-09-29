@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { generateDeck, refineDeck, saveDeck, deleteDeck } from "@/lib/decks";
 import type { DeckResult, DeckFormat, PoolMode } from "@/lib/deck-engine";
 import { Scorecard, Section, safeCards, toCards } from "@/components/deck-view";
+import { THINKING, type Thinking } from "@/lib/thinking";
 
 type Saved = { id: string; name: string; format: string; strategy: string; poolMode: string; cards: string };
 
@@ -21,6 +22,7 @@ export function DeckBuilder({ aiOn, savedDecks }: { aiOn: boolean; savedDecks: S
   const [format, setFormat] = useState<DeckFormat>("advanced");
   const [poolMode, setPoolMode] = useState<PoolMode>("collection");
   const [strategy, setStrategy] = useState("");
+  const [thinking, setThinking] = useState<Thinking>("fast");
   const [result, setResult] = useState<DeckResult | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [savedNote, setSavedNote] = useState("");
@@ -36,7 +38,7 @@ export function DeckBuilder({ aiOn, savedDecks }: { aiOn: boolean; savedDecks: S
     setChat([]);
     setChatInput("");
     start(async () => {
-      const r = await generateDeck({ format, strategy, poolMode });
+      const r = await generateDeck({ format, strategy, poolMode, thinking });
       setResult(r);
     });
   }
@@ -56,6 +58,7 @@ export function DeckBuilder({ aiOn, savedDecks }: { aiOn: boolean; savedDecks: S
         currentStrategy: result.strategy,
         history,
         message: msg,
+        thinking,
       });
       setChat((c) => [...c, { role: "ai", text: r.reply }]);
       if (r.result) setResult(r.result);
@@ -116,6 +119,17 @@ export function DeckBuilder({ aiOn, savedDecks }: { aiOn: boolean; savedDecks: S
               </div>
             </div>
 
+            <div className="deck-field">
+              <span>Thinking</span>
+              <div className="seg">
+                {(Object.keys(THINKING) as Thinking[]).map((t) => (
+                  <button key={t} className={"seg__b" + (thinking === t ? " on" : "")} onClick={() => setThinking(t)} type="button" title={THINKING[t].blurb}>
+                    {THINKING[t].label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <label className="deck-field deck-field--grow">
               <span>Strategy / theme (optional)</span>
               <input
@@ -144,7 +158,7 @@ export function DeckBuilder({ aiOn, savedDecks }: { aiOn: boolean; savedDecks: S
           </p>
         </section>
 
-        {pending && <div className="deck-building">Filtering the {fmtLabel(format)} pool and building your deck…</div>}
+        {pending && <div className="deck-building">Filtering the {fmtLabel(format)} pool and building your deck… {thinking === "careful" ? "Careful thinking takes up to a minute." : ""}</div>}
 
         {result && !pending && (
           <section className="deck-result">

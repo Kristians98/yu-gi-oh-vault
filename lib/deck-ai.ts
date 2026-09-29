@@ -1,15 +1,16 @@
-// Server-only: Azure OpenAI chat → builds a Yu-Gi-Oh! deck as JSON.
+// Server-only: Azure OpenAI chat → builds / refines a Yu-Gi-Oh! deck as JSON.
 // Uses a deck-specific deployment if set (AZURE_AI_DECK_DEPLOYMENT) else falls back to
 // the scanner's deployment. Point AZURE_AI_DECK_DEPLOYMENT at a GPT-5-class deployment
 // when you have one — no code change needed.
+
+import { normalizeThinking, type Thinking } from "@/lib/thinking";
 
 const ENDPOINT = process.env.AZURE_AI_ENDPOINT?.replace(/\/$/, "");
 const KEY = process.env.AZURE_AI_KEY;
 const DEPLOYMENT = process.env.AZURE_AI_DECK_DEPLOYMENT || process.env.AZURE_AI_DEPLOYMENT;
 const API_VERSION = process.env.AZURE_AI_API_VERSION || "2024-05-01-preview";
 const FALLBACK = process.env.AZURE_AI_DEPLOYMENT; // scanner model — used only if the deck deployment fails
-const BUDGET_MS = 55_000; // pages that call this export maxDuration = 60
-const ATTEMPT_MS = 45_000;
+const BUDGET_MS = 56_000; // pages that call this export maxDuration = 60
 
 export function deckAiConfigured(): boolean {
   return Boolean(ENDPOINT && KEY && DEPLOYMENT);
@@ -17,15 +18,16 @@ export function deckAiConfigured(): boolean {
 
 /** `reasoning_effort` candidates for a deployment, best first. Deployments differ in what
  *  they accept (gpt-5.6 knows none|low|medium|high|xhigh, gpt-5.4 minimal|low|…), so the
- *  caller walks this list on a 400 and finally sends no parameter at all. Deck building
- *  needs no visible reasoning: "none" answers in ~6s where "low" took ~50s on gpt-5.6.
- *  AZURE_AI_DECK_REASONING pins one value ("off" sends nothing). */
-export function reasoningCandidates(deployment: string | undefined): string[] {
+ *  caller walks this list on a 400 and finally sends no parameter at all.
+ *  fast: no visible reasoning (~6s on gpt-5.6). careful: low effort (~50s, better synergy).
+ *  AZURE_AI_DECK_REASONING pins one value for both ("off" sends nothing). */
+export function reasoningCandidates(deployment: string | undefined, thinking: Thinking = "fast"): string[] {
   const env = (process.env.AZURE_AI_DECK_REASONING || "").trim().toLowerCase();
   if (env === "off") return [];
   if (env) return [env];
   const d = (deployment || "").toLowerCase();
-  return /gpt-(?:[5-9]|\d{2})|^o\d/.test(d) ? ["none", "minimal", "low"] : [];
+  if (!/gpt-(?:[5-9]|\d{2})|^o\d/.test(d)) return [];
+  return thinking === "careful" ? ["low", "medium"] : ["none", "minimal", "low"];
 }
 
 // Pull the first balanced {...} object out of a model reply (it may wrap JSON in
@@ -46,6 +48,93 @@ function extractFirstJson(text: string): string | null {
   }
   return null;
 }
+
+type Msg = { role: string; content: string };
+type ChatOutcome = { text: string; note?: string } | { text: null; error: string };
+
+/** One chat call with the app's resilience rules: reasoning-effort cascade, retry on
+ *  429/5xx, then the fallback deployment — all inside the page's 60s budget. */
+async function chatJSON(messages: Msg[], thinking: Thinking, label: string): Promise<ChatOutcome> {
+  if (!deckAiConfigured()) return { text: null, error: "AI isn't configured (AZURE_AI_ENDPOINT / AZURE_AI_KEY / deployment)." };
+  const url = `${ENDPOINT}/models/chat/completions?api-version=${API_VERSION}`;
+  // careful = one long attempt; fast = short attempts with room to retry / fall back.
+  const attemptMs = thinking === "careful" ? 54_000 : 45_000;
+
+  // Deployments to try, in order: the deck deployment, then (if different) the scanner's
+  // deployment as a fallback so a duel can still start when the main model is having a bad day.
+  const chain = [DEPLOYMENT, FALLBACK].filter((d, i, arr): d is string => !!d && arr.indexOf(d) === i);
+  const startedAt = Date.now();
+  const elapsed = () => Date.now() - startedAt;
+  let res: Response | null = null;
+  let used = "";
+  let lastErr = "";
+
+  outer: for (const [di, deployment] of chain.entries()) {
+    const isFallback = di > 0;
+    if (isFallback && elapsed() > BUDGET_MS - 14_000) break; // not enough time left for another call
+    // GPT-5 / o-series reject `max_tokens` (use `max_completion_tokens`) and only allow the
+    // default temperature, so we omit temperature. Generous cap leaves room for reasoning
+    // tokens before the JSON. gpt-4o-mini accepts this shape too.
+    const body: Record<string, unknown> = { model: deployment, max_completion_tokens: 8000, messages };
+    // Reasoning models at default effort spend ~4k reasoning tokens (~50s) on a deck; that
+    // blows the 60s page budget and Azure sometimes gives up with a 500. See reasoningCandidates.
+    const efforts = reasoningCandidates(deployment, thinking);
+    let reasoning: string | null = efforts.shift() ?? null;
+    for (let attempt = 0; attempt < (isFallback || thinking === "careful" ? 1 : 2); attempt++) {
+      if (reasoning) body.reasoning_effort = reasoning; else delete body.reasoning_effort;
+      const headers: Record<string, string> = { "Content-Type": "application/json", "api-key": KEY as string };
+      // The Azure AI inference route only forwards non-standard params (reasoning_effort) with this header.
+      if (reasoning) headers["extra-parameters"] = "pass-through";
+      const payload = JSON.stringify(body);
+      const timeout = Math.max(10_000, Math.min(attemptMs, BUDGET_MS - elapsed()));
+      console.info(`Azure ${label} request`, { deployment, thinking, reasoning: reasoning ?? null, chars: payload.length, attempt, timeout });
+      try {
+        res = await fetch(url, { method: "POST", headers, body: payload, signal: AbortSignal.timeout(timeout) });
+      } catch (e) {
+        lastErr = e instanceof Error && e.name === "TimeoutError" ? `${deployment} took longer than ${Math.round(timeout / 1000)}s${thinking === "careful" ? " (try Fast thinking)" : ""}` : `network error (${e instanceof Error ? e.message : String(e)})`;
+        console.error(`Azure ${label} fetch failed`, deployment, e);
+        res = null;
+        continue outer; // don't stack another long wait on this deployment
+      }
+      if (res.ok) { used = deployment; break outer; }
+      const text = (await res.text().catch(() => "")).slice(0, 300);
+      console.error(`Azure ${label} HTTP`, deployment, res.status, text);
+      // A deployment that doesn't accept this `reasoning_effort` answers 400 — try the next
+      // candidate (and finally no parameter) without spending an attempt.
+      if (res.status === 400 && reasoning && /reasoning_effort|extra.parameters/i.test(text)) {
+        reasoning = efforts.shift() ?? null;
+        attempt--; // this one didn't count
+        continue;
+      }
+      const retryable = res.status === 429 || res.status >= 500;
+      lastErr = res.status === 429
+        ? `${deployment}: Azure rate limit (429) — tokens-per-minute quota used up`
+        : `${deployment}: Azure returned HTTP ${res.status}${text ? ` — ${text.replace(/\s+/g, " ").slice(0, 140)}` : ""}`;
+      if (!retryable) return { text: null, error: lastErr };
+      const after = Number(res.headers.get("retry-after"));
+      const wait = Math.min(12_000, Number.isFinite(after) && after > 0 ? after * 1000 : res.status === 429 ? 4000 : 6000);
+      if (attempt < 1 && elapsed() + wait < BUDGET_MS - 20_000) await new Promise((r) => setTimeout(r, wait));
+    }
+  }
+  if (!res?.ok || !used) return { text: null, error: `The deck builder failed: ${lastErr || "no response"}. Try again in a minute.` };
+  const note = used !== chain[0] ? `Built with the fallback model (${used}) — ${chain[0]} was unavailable: ${lastErr}` : undefined;
+
+  try {
+    const json = await res.json();
+    const text: string = json?.choices?.[0]?.message?.content ?? "";
+    return { text, note };
+  } catch (e) {
+    console.error(`Azure ${label} body unreadable`, e);
+    return { text: null, error: "The model's reply couldn't be read. Try again." };
+  }
+}
+
+const cleanEntries = (arr: unknown): RawDeckEntry[] =>
+  Array.isArray(arr)
+    ? arr
+        .map((e) => ({ name: String((e as RawDeckEntry)?.name ?? "").trim(), copies: Math.max(1, Math.round(Number((e as RawDeckEntry)?.copies) || 1)) }))
+        .filter((e) => e.name)
+    : [];
 
 export type RawDeckEntry = { name: string; copies: number };
 export type BuildOutcome = { deck: RawDeck; note?: string } | { deck: null; error: string };
@@ -69,14 +158,13 @@ export async function buildDeckJSON(opts: {
   strategy: string;
   poolMode: "collection" | "any";
   poolList?: string; // newline list of legal owned cards (collection mode)
+  thinking?: Thinking;
   // Play constraints (all optional):
   banned?: string[]; // must not appear
   pinned?: string[]; // must appear
   mutatorLines?: string[]; // extra hard rules, already phrased for the prompt
   current?: { name: string; strategy: string; main: RawDeckEntry[]; extra: RawDeckEntry[]; side: RawDeckEntry[] }; // patch mode
 }): Promise<BuildOutcome> {
-  if (!deckAiConfigured()) return { deck: null, error: "AI isn't configured (AZURE_AI_ENDPOINT / AZURE_AI_KEY / deployment)." };
-
   const fmt = FORMAT_LABEL[opts.format] ?? "the current TCG Advanced format";
   const poolRule =
     opts.poolMode === "collection"
@@ -138,98 +226,28 @@ export async function buildDeckJSON(opts: {
       ? `Legal cards in the player's collection (name — owned×N [type]):\n${opts.poolList ?? "(none)"}\n\nBuild the best deck you can from these cards.`
       : `Build the deck now for ${fmt}.`;
 
-  const url = `${ENDPOINT}/models/chat/completions?api-version=${API_VERSION}`;
-  const messages = [
-    { role: "system", content: system },
-    { role: "user", content: user },
-  ];
+  const out = await chatJSON([{ role: "system", content: system }, { role: "user", content: user }], normalizeThinking(opts.thinking), "deck");
+  if (out.text === null) return { deck: null, error: out.error };
 
-  // Deployments to try, in order: the deck deployment, then (if different) the scanner's
-  // deployment as a fallback so a duel can still start when gpt-5.4 is having a bad day.
-  const chain = [DEPLOYMENT, FALLBACK].filter((d, i, arr): d is string => !!d && arr.indexOf(d) === i);
-  const startedAt = Date.now();
-  const elapsed = () => Date.now() - startedAt;
-  let res: Response | null = null;
-  let used = "";
-  let lastErr = "";
-
-  outer: for (const [di, deployment] of chain.entries()) {
-    const isFallback = di > 0;
-    if (isFallback && elapsed() > BUDGET_MS - 14_000) break; // not enough time left for another call
-    // GPT-5 / o-series reject `max_tokens` (use `max_completion_tokens`) and only allow the
-    // default temperature, so we omit temperature. Generous cap leaves room for reasoning
-    // tokens before the deck JSON. gpt-4o-mini accepts this shape too.
-    const body: Record<string, unknown> = { model: deployment, max_completion_tokens: 8000, messages };
-    // Reasoning models at default effort spend ~4k reasoning tokens (~50s) on a deck; that
-    // blows the 60s page budget and Azure sometimes gives up with a 500. See reasoningCandidates.
-    const efforts = reasoningCandidates(deployment);
-    let reasoning: string | null = efforts.shift() ?? null;
-    for (let attempt = 0; attempt < (isFallback ? 1 : 2); attempt++) {
-      if (reasoning) body.reasoning_effort = reasoning; else delete body.reasoning_effort;
-      const headers: Record<string, string> = { "Content-Type": "application/json", "api-key": KEY as string };
-      // The Azure AI inference route only forwards non-standard params (reasoning_effort) with this header.
-      if (reasoning) headers["extra-parameters"] = "pass-through";
-      const payload = JSON.stringify(body);
-      const timeout = Math.max(10_000, Math.min(ATTEMPT_MS, BUDGET_MS - elapsed()));
-      console.info("Azure deck request", { deployment, reasoning: reasoning ?? null, chars: payload.length, attempt, timeout });
-      try {
-        res = await fetch(url, { method: "POST", headers, body: payload, signal: AbortSignal.timeout(timeout) });
-      } catch (e) {
-        lastErr = e instanceof Error && e.name === "TimeoutError" ? `${deployment} took longer than ${Math.round(timeout / 1000)}s` : `network error (${e instanceof Error ? e.message : String(e)})`;
-        console.error("Azure deck fetch failed", deployment, e);
-        res = null;
-        continue outer; // don't stack another long wait on this deployment
-      }
-      if (res.ok) { used = deployment; break outer; }
-      const text = (await res.text().catch(() => "")).slice(0, 300);
-      console.error("Azure deck HTTP", deployment, res.status, text);
-      // A deployment that doesn't accept this `reasoning_effort` answers 400 — try the next
-      // candidate (and finally no parameter) without spending an attempt.
-      if (res.status === 400 && reasoning && /reasoning_effort|extra.parameters/i.test(text)) {
-        reasoning = efforts.shift() ?? null;
-        attempt--; // this one didn't count
-        continue;
-      }
-      const retryable = res.status === 429 || res.status >= 500;
-      lastErr = res.status === 429
-        ? `${deployment}: Azure rate limit (429) — tokens-per-minute quota used up`
-        : `${deployment}: Azure returned HTTP ${res.status}${text ? ` — ${text.replace(/\s+/g, " ").slice(0, 140)}` : ""}`;
-      if (!retryable) return { deck: null, error: lastErr };
-      const after = Number(res.headers.get("retry-after"));
-      const wait = Math.min(12_000, Number.isFinite(after) && after > 0 ? after * 1000 : res.status === 429 ? 4000 : 6000);
-      if (attempt < 1 && elapsed() + wait < BUDGET_MS - 20_000) await new Promise((r) => setTimeout(r, wait));
-    }
+  const jsonStr = extractFirstJson(out.text);
+  if (!jsonStr) {
+    console.error("Azure deck: no JSON in reply", out.text.slice(0, 300));
+    return { deck: null, error: "The model replied without a deck (no JSON). Try again." };
   }
-  if (!res?.ok || !used) return { deck: null, error: `The deck builder failed: ${lastErr || "no response"}. Try again in a minute.` };
-  const note = used !== chain[0] ? `Built with the fallback model (${used}) — ${chain[0]} was unavailable: ${lastErr}` : undefined;
-
   try {
-    const json = await res.json();
-    const text: string = json?.choices?.[0]?.message?.content ?? "";
-    const jsonStr = extractFirstJson(text);
-    if (!jsonStr) {
-      console.error("Azure deck: no JSON in reply", text.slice(0, 300));
-      return { deck: null, error: "The model replied without a deck (no JSON). Try again." };
-    }
     const parsed = JSON.parse(jsonStr) as Partial<RawDeck>;
-    const clean = (arr: unknown): RawDeckEntry[] =>
-      Array.isArray(arr)
-        ? arr
-            .map((e) => ({ name: String((e as RawDeckEntry)?.name ?? "").trim(), copies: Math.max(1, Math.round(Number((e as RawDeckEntry)?.copies) || 1)) }))
-            .filter((e) => e.name)
-        : [];
     return {
-      note,
+      note: out.note,
       deck: {
         deckName: String(parsed.deckName ?? "Untitled Deck").trim().slice(0, 80) || "Untitled Deck",
         strategy: String(parsed.strategy ?? "").trim().slice(0, 800),
-        mainDeck: clean(parsed.mainDeck),
-        extraDeck: clean(parsed.extraDeck),
-        sideDeck: clean(parsed.sideDeck),
+        mainDeck: cleanEntries(parsed.mainDeck),
+        extraDeck: cleanEntries(parsed.extraDeck),
+        sideDeck: cleanEntries(parsed.sideDeck),
       },
     };
   } catch (e) {
-    console.error("Azure deck build failed", e);
+    console.error("Azure deck JSON parse failed", e);
     return { deck: null, error: `The model's reply couldn't be read (${e instanceof Error ? e.message : "parse error"}). Try again.` };
   }
 }
@@ -245,7 +263,7 @@ export type RefineResult = {
 };
 
 /** Conversational follow-up on a built deck: answer a question, or apply a change and
- *  return the full revised deck. */
+ *  return the full revised deck. Failures come back as a reply with `changed: false`. */
 export async function refineDeckJSON(opts: {
   format: string;
   poolMode: "collection" | "any";
@@ -254,8 +272,8 @@ export async function refineDeckJSON(opts: {
   currentStrategy: string;
   history: { role: string; content: string }[];
   message: string;
-}): Promise<RefineResult | null> {
-  if (!deckAiConfigured()) return null;
+  thinking?: Thinking;
+}): Promise<RefineResult> {
   const fmt = FORMAT_LABEL[opts.format] ?? "the current TCG Advanced format";
   const list = (a: { name: string; copies: number }[]) => (a.length ? a.map((e) => `${e.copies}x ${e.name}`).join(", ") : "(none)");
   const poolRule =
@@ -279,38 +297,24 @@ export async function refineDeckJSON(opts: {
     ...opts.history.slice(-8).map((h) => ({ role: h.role === "user" ? "user" : "assistant", content: h.content })),
     { role: "user", content: opts.message },
   ];
-  const url = `${ENDPOINT}/models/chat/completions?api-version=${API_VERSION}`;
-  const body = { model: DEPLOYMENT, max_completion_tokens: 8000, messages };
+
+  const out = await chatJSON(messages, normalizeThinking(opts.thinking), "refine");
+  if (out.text === null) return { reply: out.error, changed: false };
+  const jsonStr = extractFirstJson(out.text);
+  if (!jsonStr) return { reply: out.text.trim() || "The model replied without JSON — try rephrasing.", changed: false };
   try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "api-key": KEY as string },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) {
-      console.error("Azure refine HTTP", res.status, (await res.text().catch(() => "")).slice(0, 300));
-      return null;
-    }
-    const json = await res.json();
-    const text: string = json?.choices?.[0]?.message?.content ?? "";
-    const jsonStr = extractFirstJson(text);
-    if (!jsonStr) return null;
     const p = JSON.parse(jsonStr) as Partial<RefineResult>;
-    const clean = (arr: unknown): RawDeckEntry[] =>
-      Array.isArray(arr)
-        ? arr.map((e) => ({ name: String((e as RawDeckEntry)?.name ?? "").trim(), copies: Math.max(1, Math.round(Number((e as RawDeckEntry)?.copies) || 1)) })).filter((e) => e.name)
-        : [];
     return {
       reply: String(p.reply ?? "").trim() || "(no reply)",
       changed: Boolean(p.changed),
       deckName: p.deckName ? String(p.deckName).trim().slice(0, 80) : undefined,
       strategy: p.strategy ? String(p.strategy).trim().slice(0, 800) : undefined,
-      mainDeck: clean(p.mainDeck),
-      extraDeck: clean(p.extraDeck),
-      sideDeck: clean(p.sideDeck),
+      mainDeck: cleanEntries(p.mainDeck),
+      extraDeck: cleanEntries(p.extraDeck),
+      sideDeck: cleanEntries(p.sideDeck),
     };
   } catch (e) {
-    console.error("Azure refine failed", e);
-    return null;
+    console.error("Azure refine JSON parse failed", e);
+    return { reply: "The model's reply couldn't be read — try again.", changed: false };
   }
 }

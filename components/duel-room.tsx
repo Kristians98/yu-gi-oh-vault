@@ -287,15 +287,16 @@ export function DuelRoom({ view: v, aiOn }: { view: DuelView; aiOn: boolean }) {
       <div className="content">
         <div className={"duel-banner" + (sab && building && v.bothDecks && v.isMyTurn && !v.me.locked ? " duel-banner--turn" : "")}>
           <span>{banner}</span>
-          {v.mutators.length > 0 && (
+          {(v.mutators.length > 0 || v.options.thinking === "careful") && (
             <span className="duel-banner__mut">
               {v.mutators.map((m) => <span key={m} className="badge" title={MUTATORS[m]?.blurb}>{MUTATORS[m]?.label ?? m}</span>)}
+              {v.options.thinking === "careful" && <span className="badge" title="Builds let the model reason first: slower, better synergy">Careful AI</span>}
             </span>
           )}
         </div>
         {err && <p className="err">{err}</p>}
         {busy && (busy === "gen" || busy === "reroll" || busy === "kill" || busy === "pin" || busy === "snipe" || busy === "plant" || busy === "force") && (
-          <div className="deck-building">The AI is rebuilding a deck — this takes 15–20 seconds…</div>
+          <div className="deck-building">The AI is rebuilding a deck — {v.options.thinking === "careful" ? "careful thinking takes up to a minute" : "about 10 seconds"}…</div>
         )}
 
         {v.status === "PENDING" && (

@@ -4,9 +4,9 @@
 import type { Duel } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getFriendIds } from "@/lib/social";
-import { legalPoolSize, normalizeFormat, type DeckFormat } from "@/lib/deck-engine";
+import { legalPoolSizes, normalizeFormat, type DeckFormat } from "@/lib/deck-engine";
+import type { Thinking } from "@/lib/thinking";
 import {
-  FORMATS,
   deckVisible,
   otherSide,
   parseJSON,
@@ -40,7 +40,7 @@ export type DuelView = {
   format: DeckFormat;
   mode: DuelMode;
   mutators: MutatorKey[];
-  options: { forceReroll?: boolean };
+  options: { forceReroll?: boolean; thinking?: Thinking };
   status: DuelStatus;
   round: number;
   mySide: Side;
@@ -177,19 +177,15 @@ export type PlayHome = {
   records: HeadToHead[];
 };
 
-async function poolsFor(userId: string): Promise<Record<DeckFormat, number>> {
-  const out = {} as Record<DeckFormat, number>;
-  for (const f of FORMATS) out[f] = await legalPoolSize(userId, f);
-  return out;
-}
-
 export async function loadPlayHome(meId: string): Promise<PlayHome> {
   const friendIds = await getFriendIds(meId);
   const friends = friendIds.length ? await prisma.user.findMany({ where: { id: { in: friendIds } }, select: { id: true, displayName: true, username: true } }) : [];
-  const friendPools: FriendPool[] = [];
-  for (const f of friends) friendPools.push({ id: f.id, name: nameOf(f), initial: nameOf(f)[0].toUpperCase(), pools: await poolsFor(f.id) });
+  // One query for every binder involved (was one heavy query per user per format).
+  const sizes = await legalPoolSizes([meId, ...friends.map((f) => f.id)]);
+  const empty = (): Record<DeckFormat, number> => ({ advanced: 0, goat: 0, edison: 0 });
+  const friendPools: FriendPool[] = friends.map((f) => ({ id: f.id, name: nameOf(f), initial: nameOf(f)[0].toUpperCase(), pools: sizes.get(f.id) ?? empty() }));
   friendPools.sort((a, b) => a.name.localeCompare(b.name));
-  const myPools = await poolsFor(meId);
+  const myPools = sizes.get(meId) ?? empty();
 
   const duels = await prisma.duel.findMany({
     where: { OR: [{ challengerId: meId }, { opponentId: meId }] },

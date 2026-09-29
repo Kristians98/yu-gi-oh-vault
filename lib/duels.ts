@@ -30,6 +30,7 @@ import {
   type MutatorKey,
   type Side,
 } from "@/lib/duel-rules";
+import { normalizeThinking, type Thinking } from "@/lib/thinking";
 
 // Server actions for Play. Every mutation re-reads the duel and checks the caller is a
 // participant, the status allows the move, and (sabotage) it is their turn.
@@ -117,6 +118,7 @@ async function rebuildSide(
     format,
     strategy,
     poolMode: "collection",
+    thinking: normalizeThinking(parseJSON<{ thinking?: Thinking }>(d.options, {}).thinking),
     constraints: {
       banned,
       pinned,
@@ -166,6 +168,7 @@ export async function challengeDuel(input: {
   mode: string;
   mutators: string[];
   forceReroll?: boolean;
+  thinking?: Thinking;
 }): Promise<{ id?: string; error?: string }> {
   const userId = await me();
   if (input.opponentId === userId) return { error: "Pick a friend to duel." };
@@ -177,7 +180,7 @@ export async function challengeDuel(input: {
   if (mine < MIN_POOL) return { error: `You only have ${mine} cards legal in ${FORMAT_LABEL[format]} — not enough to build from.` };
   if (theirs < MIN_POOL) return { error: `They only have ${theirs} cards legal in ${FORMAT_LABEL[format]} — pick another format.` };
 
-  const options = { forceReroll: mode === "sabotage" && !!input.forceReroll };
+  const options = { forceReroll: mode === "sabotage" && !!input.forceReroll, thinking: normalizeThinking(input.thinking) };
   const budget = JSON.stringify(startingBudget(mode, options));
   const d = await prisma.duel.create({
     data: {

@@ -16,6 +16,7 @@ import {
   type DeckResult,
   type PoolMode,
 } from "@/lib/deck-engine";
+import type { Thinking } from "@/lib/thinking";
 
 // Server actions for the Decks page. The engine itself (legality, resolution, scoring)
 // lives in lib/deck-engine.ts so Play can build decks for either player.
@@ -27,9 +28,9 @@ async function requireUser(): Promise<string> {
 }
 
 /** Generate (but don't save) a deck. Returns a render-ready result with warnings. */
-export async function generateDeck(input: { format: DeckFormat; strategy: string; poolMode: PoolMode }): Promise<DeckResult> {
+export async function generateDeck(input: { format: DeckFormat; strategy: string; poolMode: PoolMode; thinking?: Thinking }): Promise<DeckResult> {
   const userId = await requireUser();
-  return buildDeckForUser(userId, { format: input.format, strategy: input.strategy ?? "", poolMode: input.poolMode });
+  return buildDeckForUser(userId, { format: input.format, strategy: input.strategy ?? "", poolMode: input.poolMode, thinking: input.thinking });
 }
 
 /** Conversationally refine a built deck — answer a question, or apply a change and
@@ -42,6 +43,7 @@ export async function refineDeck(input: {
   currentStrategy: string;
   history: { role: string; content: string }[];
   message: string;
+  thinking?: Thinking;
 }): Promise<{ reply: string; result: DeckResult | null }> {
   const userId = await requireUser();
   const format = normalizeFormat(input.format);
@@ -55,8 +57,8 @@ export async function refineDeck(input: {
     currentStrategy: input.currentStrategy,
     history: input.history ?? [],
     message: input.message,
+    thinking: input.thinking,
   });
-  if (!r) return { reply: "The deck assistant didn't respond — check the AI config (AZURE_AI_*) and try again.", result: null };
   if (r.changed && (r.mainDeck?.length || r.extraDeck?.length)) {
     const rawDeck: RawDeck = {
       deckName: r.deckName || input.currentName || "Untitled Deck",

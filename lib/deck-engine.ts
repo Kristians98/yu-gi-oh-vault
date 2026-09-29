@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { containsCI } from "@/lib/db-text";
 import { buildDeckJSON, type RawDeck } from "@/lib/deck-ai";
 import { MUTATORS, type MutatorKey } from "@/lib/duel-rules";
+import type { Thinking } from "@/lib/thinking";
 
 export type DeckFormat = "advanced" | "goat" | "edison";
 export type PoolMode = "collection" | "any";
@@ -64,6 +65,8 @@ export type CardRow = {
 };
 
 const CARD_SELECT = { id: true, name: true, frame: true, typeLine: true, level: true, atk: true, def: true, banTcg: true, banGoat: true, banEdison: true, tcgDate: true, desc: true, linkval: true, isTuner: true, handTrap: true, archetype: true } as const;
+// Pool listings never read card text; leaving `desc` out keeps a big binder's query light.
+const POOL_SELECT = { id: true, name: true, frame: true, typeLine: true, level: true, atk: true, def: true, banTcg: true, banGoat: true, banEdison: true, tcgDate: true, linkval: true, isTuner: true, handTrap: true, archetype: true } as const;
 
 function banFieldFor(c: CardRow, format: DeckFormat): string | null {
   return format === "goat" ? c.banGoat : format === "edison" ? c.banEdison : c.banTcg;
@@ -103,11 +106,11 @@ export type PoolEntry = { c: CardRow; qty: number };
 export async function legalPool(userId: string, format: DeckFormat): Promise<PoolEntry[]> {
   const rows = await prisma.ownedCard.findMany({
     where: { userId },
-    select: { quantity: true, printing: { select: { card: { select: CARD_SELECT } } } },
+    select: { quantity: true, printing: { select: { card: { select: POOL_SELECT } } } },
   });
   const byId = new Map<number, PoolEntry>();
   for (const o of rows) {
-    const c = o.printing.card as CardRow;
+    const c = { ...o.printing.card, desc: "" } as CardRow;
     if (!isLegal(c, format)) continue;
     const e = byId.get(c.id) ?? { c, qty: 0 };
     e.qty += o.quantity;
@@ -117,7 +120,37 @@ export async function legalPool(userId: string, format: DeckFormat): Promise<Poo
 }
 
 export async function legalPoolSize(userId: string, format: DeckFormat): Promise<number> {
-  return (await legalPool(userId, format)).length;
+  return (await legalPoolSizes([userId])).get(userId)?.[format] ?? 0;
+}
+
+const ALL_FORMATS: DeckFormat[] = ["advanced", "goat", "edison"];
+
+/** Distinct legal cards per user per format — one light query for all users (Play home). */
+export async function legalPoolSizes(userIds: string[]): Promise<Map<string, Record<DeckFormat, number>>> {
+  const out = new Map<string, Record<DeckFormat, number>>();
+  for (const u of userIds) out.set(u, { advanced: 0, goat: 0, edison: 0 });
+  if (userIds.length === 0) return out;
+  const rows = await prisma.ownedCard.findMany({
+    where: { userId: { in: userIds } },
+    select: { userId: true, printing: { select: { card: { select: { id: true, banTcg: true, banGoat: true, banEdison: true, tcgDate: true } } } } },
+  });
+  const seen = new Map<string, Set<number>>(); // `${userId}:${format}` -> distinct card ids
+  for (const r of rows) {
+    const c = r.printing.card as unknown as CardRow;
+    for (const f of ALL_FORMATS) {
+      if (!isLegal(c, f)) continue;
+      const k = `${r.userId}:${f}`;
+      let set = seen.get(k);
+      if (!set) { set = new Set(); seen.set(k, set); }
+      set.add(c.id);
+    }
+  }
+  for (const [k, set] of seen) {
+    const [u, f] = k.split(":") as [string, DeckFormat];
+    const rec = out.get(u);
+    if (rec) rec[f] = set.size;
+  }
+  return out;
 }
 
 /** Newline list the model builds from: "Name — owned×N [type, Lv, atk/def]". */
@@ -441,7 +474,7 @@ export async function finalizeDeck(raw: RawDeck, format: DeckFormat, poolMode: P
 /** Build (but don't save) a deck for `userId`. Returns a render-ready result with warnings. */
 export async function buildDeckForUser(
   userId: string,
-  input: { format: DeckFormat; strategy: string; poolMode: PoolMode; constraints?: BuildConstraints },
+  input: { format: DeckFormat; strategy: string; poolMode: PoolMode; constraints?: BuildConstraints; thinking?: Thinking },
 ): Promise<DeckResult> {
   const format = normalizeFormat(input.format);
   const poolMode = normalizePoolMode(input.poolMode);
@@ -462,6 +495,7 @@ export async function buildDeckForUser(
     strategy: input.strategy ?? "",
     poolMode,
     poolList,
+    thinking: input.thinking,
     banned: cons.banned,
     pinned: cons.pinned,
     mutatorLines: (cons.mutators ?? []).map((m) => MUTATORS[m]?.prompt).filter(Boolean) as string[],
