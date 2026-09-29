@@ -22,7 +22,7 @@ export function reasoningEffortFor(deployment: string | undefined): string | nul
   if (env === "off" || env === "none") return null;
   if (["minimal", "low", "medium", "high"].includes(env)) return env;
   const d = (deployment || "").toLowerCase();
-  return /gpt-5|^o\d/.test(d) ? "low" : null;
+  return /gpt-(?:[5-9]|\d{2})|^o\d/.test(d) ? "low" : null;
 }
 
 // Pull the first balanced {...} object out of a model reply (it may wrap JSON in
