@@ -9,7 +9,7 @@ export default async function BinderPage() {
 
   const owned = await prisma.ownedCard.findMany({
     where: { userId: session.user.id },
-    include: { printing: { include: { card: true } } },
+    include: { printing: { include: { card: { omit: { desc: true } } } } },
     orderBy: { createdAt: "desc" },
   });
 

@@ -32,7 +32,7 @@ export default async function FriendBinderPage({ params }: { params: Promise<{ u
 
   const owned = await prisma.ownedCard.findMany({
     where: { userId: owner.id },
-    include: { printing: { include: { card: true } } },
+    include: { printing: { include: { card: { omit: { desc: true } } } } },
     orderBy: { createdAt: "desc" },
   });
 

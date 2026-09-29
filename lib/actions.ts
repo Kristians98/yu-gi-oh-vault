@@ -13,6 +13,12 @@ async function requireUser(): Promise<string> {
   return session.user.id;
 }
 
+/** Card effect text for the focus modal (binder payloads leave `desc` out to stay small). */
+export async function getCardText(cardId: number): Promise<string> {
+  const c = await prisma.card.findUnique({ where: { id: cardId }, select: { desc: true } });
+  return c?.desc ?? "";
+}
+
 export async function searchCards(q: string) {
   const needle = (q || "").trim();
   if (needle.length < 2) return [];

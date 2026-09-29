@@ -20,7 +20,7 @@ export type OwnedRow = {
       atk: number | null;
       def: number | null;
       level: number | null;
-      desc: string;
+      desc?: string; // omitted from binder payloads; the modal fetches it on open
       archetype: string | null;
       banTcg: string | null;
       banGoat: string | null;

@@ -179,22 +179,24 @@ export type PlayHome = {
 
 export async function loadPlayHome(meId: string): Promise<PlayHome> {
   const friendIds = await getFriendIds(meId);
-  const friends = friendIds.length ? await prisma.user.findMany({ where: { id: { in: friendIds } }, select: { id: true, displayName: true, username: true } }) : [];
-  // One query for every binder involved (was one heavy query per user per format).
-  const sizes = await legalPoolSizes([meId, ...friends.map((f) => f.id)]);
+  // Independent queries run side by side: friend profiles, pool sizes (one light query for
+  // every binder involved) and the duel list.
+  const [friends, sizes, duels] = await Promise.all([
+    friendIds.length ? prisma.user.findMany({ where: { id: { in: friendIds } }, select: { id: true, displayName: true, username: true } }) : Promise.resolve([]),
+    legalPoolSizes([meId, ...friendIds]),
+    prisma.duel.findMany({
+      where: { OR: [{ challengerId: meId }, { opponentId: meId }] },
+      include: {
+        challenger: { select: { id: true, displayName: true, username: true } },
+        opponent: { select: { id: true, displayName: true, username: true } },
+      },
+      orderBy: { updatedAt: "desc" },
+    }),
+  ]);
   const empty = (): Record<DeckFormat, number> => ({ advanced: 0, goat: 0, edison: 0 });
   const friendPools: FriendPool[] = friends.map((f) => ({ id: f.id, name: nameOf(f), initial: nameOf(f)[0].toUpperCase(), pools: sizes.get(f.id) ?? empty() }));
   friendPools.sort((a, b) => a.name.localeCompare(b.name));
   const myPools = sizes.get(meId) ?? empty();
-
-  const duels = await prisma.duel.findMany({
-    where: { OR: [{ challengerId: meId }, { opponentId: meId }] },
-    include: {
-      challenger: { select: { id: true, displayName: true, username: true } },
-      opponent: { select: { id: true, displayName: true, username: true } },
-    },
-    orderBy: { updatedAt: "desc" },
-  });
 
   const yourMove: DuelRow[] = [], waiting: DuelRow[] = [], history: DuelRow[] = [];
   const rec = new Map<string, HeadToHead>();

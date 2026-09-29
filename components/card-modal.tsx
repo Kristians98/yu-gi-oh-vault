@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useModalLock } from "./use-modal-lock";
 import { type Card, type Condition, RARITY, num } from "@/lib/cards";
 import { RarityCard } from "./rarity-card";
-import { removeOwnedCard, setForTrade, setQuantity } from "@/lib/actions";
+import { getCardText, removeOwnedCard, setForTrade, setQuantity } from "@/lib/actions";
 import { getReactions, toggleReaction } from "@/lib/reactions";
 
 const CONDITION_LABEL: Record<Condition, string> = {
@@ -26,6 +26,7 @@ export function CardModal({ card, onClose, onChanged, readOnly }: { card: Card; 
   const [qty, setQty] = useState(card.quantity);
   const [trade, setTrade] = useState(card.forTrade);
   const [reactions, setReactions] = useState<{ counts: Record<string, number>; mine: string[] } | null>(null);
+  const [desc, setDesc] = useState(card.desc ?? "");
   const wrapRef = useRef<HTMLDivElement>(null);
   const [canTilt, setCanTilt] = useState(false);
   const [tilting, setTilting] = useState(false);
@@ -35,6 +36,14 @@ export function CardModal({ card, onClose, onChanged, readOnly }: { card: Card; 
   useEffect(() => {
     if (card.ownedId) getReactions(card.ownedId).then(setReactions).catch(() => {});
   }, [card.ownedId]);
+
+  // Effect text is not in the binder payload — load it when the modal opens.
+  useEffect(() => {
+    let live = true;
+    setDesc(card.desc ?? "");
+    if (!card.desc) getCardText(card.id).then((d) => { if (live) setDesc(d); }).catch(() => {});
+    return () => { live = false; };
+  }, [card.id, card.desc]);
 
   // Gyroscope tilt: drive the same CSS vars the pointer tilt uses, from device motion.
   useEffect(() => {
@@ -207,7 +216,7 @@ export function CardModal({ card, onClose, onChanged, readOnly }: { card: Card; 
             </span>
           </div>
 
-          {card.desc && <p className="card-desc">{card.desc}</p>}
+          {desc && <p className="card-desc">{desc}</p>}
 
           {owned && !readOnly && (
             <div className="owned-actions">
