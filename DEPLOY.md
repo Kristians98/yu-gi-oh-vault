@@ -31,6 +31,11 @@ node prisma/enrich-links.mjs  # linkval + isTuner (deck-builder summonability)
 well within Supabase's 500 MB free limit.)
 
 ## 3. Vercel (app)
+`vercel.json` pins the function region to **fra1 (Frankfurt)** so every database query stays
+inside Europe (the default, iad1 in the US, adds ~90 ms per query). Match it to your Supabase
+region: eu-central-1 → `fra1`, eu-west-1 → `dub1`, eu-west-2 → `lhr1`, eu-north-1 → `arn1`,
+eu-west-3 → `cdg1`. Vercel Hobby allows one region.
+
 1. Push the repo to GitHub and **Import** it in Vercel.
 2. Build command is automatic: `package.json` has a `vercel-build` script that runs
    `prisma generate --schema=prisma/schema.postgres.prisma && next build`.
