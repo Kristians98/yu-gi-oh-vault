@@ -52,6 +52,11 @@ export async function buildDeckJSON(opts: {
   strategy: string;
   poolMode: "collection" | "any";
   poolList?: string; // newline list of legal owned cards (collection mode)
+  // Play constraints (all optional):
+  banned?: string[]; // must not appear
+  pinned?: string[]; // must appear
+  mutatorLines?: string[]; // extra hard rules, already phrased for the prompt
+  current?: { name: string; strategy: string; main: RawDeckEntry[]; extra: RawDeckEntry[]; side: RawDeckEntry[] }; // patch mode
 }): Promise<RawDeck | null> {
   if (!deckAiConfigured()) return null;
 
@@ -63,6 +68,24 @@ export async function buildDeckJSON(opts: {
   const strategyLine = opts.strategy.trim()
     ? `The player asked for this strategy/theme: "${opts.strategy.trim()}". Build around it.`
     : "Choose a strong, coherent strategy that suits the format.";
+  const banned = (opts.banned ?? []).filter(Boolean);
+  const pinned = (opts.pinned ?? []).filter(Boolean);
+  const constraintLines = [
+    ...(banned.length ? [`- BANNED for this deck (must NOT appear anywhere, not even in the Side Deck): ${banned.join("; ")}.`] : []),
+    ...(pinned.length ? [`- MUST INCLUDE these cards in the Main or Extra Deck (at least 1 copy each, more if it helps): ${pinned.join("; ")}.`] : []),
+    ...(opts.mutatorLines ?? []).map((l) => `- ${l}`),
+  ];
+  const list = (a: RawDeckEntry[]) => (a.length ? a.map((e) => `${e.copies}x ${e.name}`).join(", ") : "(none)");
+  const patchLines = opts.current
+    ? [
+        `PATCH MODE — start from the player's current deck "${opts.current.name}" and change as little as possible:`,
+        `  MAIN: ${list(opts.current.main)}`,
+        `  EXTRA: ${list(opts.current.extra)}`,
+        `  SIDE: ${list(opts.current.side)}`,
+        "  Remove any banned cards, add any must-include cards, then only swap/fill what is needed to keep the deck legal (40 Main) and coherent. Keep the deck name and strategy unless the change forces a new plan.",
+        ...(opts.current.strategy ? [`  Current strategy: ${opts.current.strategy}`] : []),
+      ]
+    : [];
 
   const system = [
     `You are an expert Yu-Gi-Oh! TCG deck builder. Build ONE coherent, competitively reasonable deck for ${fmt}.`,
@@ -85,6 +108,8 @@ export async function buildDeckJSON(opts: {
     "  4) Resource management — include ways to recycle resources and rebuild after a board wipe (Graveyard recursion, searchers, draw).",
     "  5) Format fitness — every card legal for the format; include format-appropriate hand traps and a Side Deck (up to 15) to answer popular strategies.",
     "Counts must add up.",
+    ...(constraintLines.length ? ["Extra HARD rules for this build:", ...constraintLines] : []),
+    ...patchLines,
     strategyLine,
     "Before answering, re-check every rule above — especially that EVERY Extra Deck card is summonable from your Main Deck — and fix any violation.",
     'Respond with ONLY this JSON (no markdown, no prose): {"deckName":string,"strategy":string,"mainDeck":[{"name":string,"copies":number}],"extraDeck":[{"name":string,"copies":number}],"sideDeck":[{"name":string,"copies":number}]}',

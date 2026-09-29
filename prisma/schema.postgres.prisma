@@ -35,6 +35,8 @@ model User {
   activity         ActivityEvent[]
   reactions        Reaction[]
   decks            Deck[]
+  duelsChallenged  Duel[]          @relation("duelsChallenged")
+  duelsReceived    Duel[]          @relation("duelsReceived")
 }
 
 model Card {
@@ -241,4 +243,57 @@ model Deck {
   createdAt DateTime @default(now())
 
   @@index([userId])
+}
+
+// ---- Play: friend-vs-friend duels with AI-built decks from each player's own binder ----
+// mode: classic | roulette | sabotage. status: PENDING | BUILDING | REVEALED | DONE | DECLINED | CANCELLED.
+// Per-side deck/budget are JSON (see lib/duel-rules.ts DuelDeck / Budget).
+model Duel {
+  id               String    @id @default(cuid())
+  challengerId     String
+  challenger       User      @relation("duelsChallenged", fields: [challengerId], references: [id], onDelete: Cascade)
+  opponentId       String
+  opponent         User      @relation("duelsReceived", fields: [opponentId], references: [id], onDelete: Cascade)
+  format           String    @default("advanced")
+  mode             String    @default("classic")
+  mutators         String    @default("[]") // JSON string[]
+  options          String    @default("{}") // JSON: { forceReroll?: boolean }
+  status           String    @default("PENDING")
+  turnUserId       String? // sabotage: whose move it is (null until both decks exist)
+  round            Int       @default(0)
+  challengerDeck   String? // JSON DuelDeck
+  opponentDeck     String?
+  challengerBudget String    @default("{}")
+  opponentBudget   String    @default("{}")
+  challengerLocked Boolean   @default(false)
+  opponentLocked   Boolean   @default(false)
+  challengerTheme  String? // roulette: archetype rolled for this side
+  opponentTheme    String?
+  winnerId         String?
+  recordedById     String?
+  resultNote       String?
+  finishedAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  actions DuelAction[]
+
+  @@index([challengerId])
+  @@index([opponentId, status])
+}
+
+// Log of moves in a duel (rerolls, kills, pins, snipes, plants, locks) — feeds the reveal
+// screen and the activity feed.
+model DuelAction {
+  id         String   @id @default(cuid())
+  duelId     String
+  duel       Duel     @relation(fields: [duelId], references: [id], onDelete: Cascade)
+  actorId    String
+  type       String
+  targetSide String // challenger | opponent
+  cardName   String?
+  detail     String?
+  createdAt  DateTime @default(now())
+
+  @@index([duelId])
 }

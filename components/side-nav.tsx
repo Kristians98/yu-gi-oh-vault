@@ -24,6 +24,9 @@ const Chart = () => (
 const Pulse = () => (
   <svg className="nav__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12h4l2 6 4-14 2 8h6" /></svg>
 );
+const Swords = () => (
+  <svg className="nav__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 17.5 3 6V3h3l11.5 11.5" /><path d="M13 19l6-6" /><path d="M16 16l4 4" /><path d="M19 21l2-2" /><path d="m14 7 4-4h3v3l-4 4" /><path d="M5 14l-2 2 4 4 2-2" /></svg>
+);
 const Deck = () => (
   <svg className="nav__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3 8.5 4.5L12 12 3.5 7.5 12 3Z" /><path d="m3.5 12 8.5 4.5 8.5-4.5" /><path d="m3.5 16.5 8.5 4.5 8.5-4.5" /></svg>
 );
@@ -46,6 +49,7 @@ export function SideNav() {
       <Item href="/wishlist" label="Wishlist" icon={Star} />
 
       <div className="nav__label" style={{ marginTop: 18 }}>Social</div>
+      <Item href="/play" label="Play" icon={Swords} />
       <Item href="/friends" label="Friends" icon={Users} />
       <Item href="/trades" label="Trades" icon={Swap} />
       <Item href="/feed" label="Activity" icon={Pulse} />

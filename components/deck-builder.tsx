@@ -2,19 +2,9 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { artUrl, FRAME_COLOR, type Frame } from "@/lib/cards";
-import {
-  generateDeck,
-  refineDeck,
-  saveDeck,
-  deleteDeck,
-  type DeckResult,
-  type DeckCards,
-  type DeckCardEntry,
-  type ResolvedEntry,
-  type DeckFormat,
-  type PoolMode,
-} from "@/lib/decks";
+import { generateDeck, refineDeck, saveDeck, deleteDeck } from "@/lib/decks";
+import type { DeckResult, DeckFormat, PoolMode } from "@/lib/deck-engine";
+import { Scorecard, Section, safeCards, toCards } from "@/components/deck-view";
 
 type Saved = { id: string; name: string; format: string; strategy: string; poolMode: string; cards: string };
 
@@ -24,80 +14,7 @@ const FORMATS: { v: DeckFormat; label: string }[] = [
   { v: "edison", label: "Edison" },
 ];
 
-function frameVar(frame: string | null): React.CSSProperties {
-  const c = frame ? FRAME_COLOR[frame as Frame] : undefined;
-  return c ? ({ "--frame": c } as React.CSSProperties) : {};
-}
-
-function Thumb({ e, showNeed }: { e: ResolvedEntry | DeckCardEntry; showNeed?: boolean }) {
-  const owned = "owned" in e ? e.owned : undefined;
-  const need = showNeed && owned != null ? Math.max(0, e.copies - owned) : 0;
-  const legalBad = "legal" in e && !e.legal;
-  return (
-    <div className={"dthumb" + (legalBad ? " dthumb--bad" : "")} style={frameVar(e.frame)} title={e.name}>
-      {e.id ? (
-        <img className="dthumb__img" src={artUrl(e.id, true)} alt={e.name} loading="lazy" draggable={false} />
-      ) : (
-        <div className="dthumb__ph">{e.name}</div>
-      )}
-      {e.copies > 1 && <span className="dthumb__x">×{e.copies}</span>}
-      {need > 0 && <span className="dthumb__need">need {need}</span>}
-    </div>
-  );
-}
-
-function Section({ title, count, entries, showNeed }: { title: string; count: number; entries: (ResolvedEntry | DeckCardEntry)[]; showNeed?: boolean }) {
-  if (!entries.length) return null;
-  return (
-    <div className="dsection">
-      <div className="dsection__head">
-        <span className="dsection__title">{title}</span>
-        <span className="dsection__count">{count}</span>
-      </div>
-      <div className="dgrid">
-        {entries.map((e, i) => (
-          <Thumb key={(e.id ?? e.name) + "-" + i} e={e} showNeed={showNeed} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function toCards(r: DeckResult): DeckCards {
-  const strip = (a: ResolvedEntry[]): DeckCardEntry[] => a.map((e) => ({ id: e.id, name: e.name, copies: e.copies, frame: e.frame }));
-  return { main: strip(r.main), extra: strip(r.extra), side: strip(r.side) };
-}
-
 const fmtLabel = (f: string) => FORMATS.find((x) => x.v === f)?.label ?? f;
-
-const barCls = (s: number) => (s >= 70 ? "hi" : s >= 45 ? "mid" : "lo");
-
-function Scorecard({ p }: { p: DeckResult["pillars"] }) {
-  const rows: [string, typeof p.consistency][] = [
-    ["Consistency", p.consistency],
-    ["Resilience", p.resilience],
-    ["Disruption", p.disruption],
-    ["Resources", p.resources],
-    ["Format fitness", p.fitness],
-  ];
-  return (
-    <div className="scorecard">
-      <div className="scorecard__overall">
-        <span className={"grade grade--" + barCls(p.overall)}>{p.grade}</span>
-        <div className="scorecard__o"><b>{p.overall}</b><span>overall</span></div>
-      </div>
-      <div className="pillars">
-        {rows.map(([name, pl]) => (
-          <div className="pillar" key={name} title={pl.detail}>
-            <div className="pillar__head"><span>{name}</span><span className="pillar__score">{pl.score}</span></div>
-            <div className="pillar__track"><span className={"pillar__fill pillar__fill--" + barCls(pl.score)} style={{ width: pl.score + "%" }} /></div>
-            <div className="pillar__detail">{pl.label} · {pl.detail}</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 export function DeckBuilder({ aiOn, savedDecks }: { aiOn: boolean; savedDecks: Saved[] }) {
   const router = useRouter();
@@ -327,13 +244,4 @@ export function DeckBuilder({ aiOn, savedDecks }: { aiOn: boolean; savedDecks: S
       </div>
     </>
   );
-}
-
-function safeCards(json: string): DeckCards {
-  try {
-    const c = JSON.parse(json) as Partial<DeckCards>;
-    return { main: c.main ?? [], extra: c.extra ?? [], side: c.side ?? [] };
-  } catch {
-    return { main: [], extra: [], side: [] };
-  }
 }

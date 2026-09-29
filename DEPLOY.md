@@ -86,7 +86,7 @@ HTTPS is automatic on Vercel — so the scanner camera works with no tunnel.
 
 ## ⚠️ The one free-tier gotcha: function timeout
 The deck builder calls **gpt-5.4 (~15–20s)**. Pages that invoke it set `maxDuration = 60`
-(`app/(app)/decks/page.tsx`, `app/(app)/scan/page.tsx`). Vercel Hobby with Fluid Compute
+(`app/(app)/decks/page.tsx`, `app/(app)/scan/page.tsx`, `app/(app)/play/[id]/page.tsx` — duel rebuilds run there). Vercel Hobby with Fluid Compute
 (now the default) allows up to 60s — **after the first deploy, build one deck and confirm
 it doesn't 504.** If it does time out on your plan, the fix that stays free is to move the
 raw Azure call to a **Cloudflare Worker** (key as a Worker secret; the client calls the
