@@ -148,7 +148,7 @@ export type RawDeck = {
 
 const FORMAT_LABEL: Record<string, string> = {
   advanced: "the current TCG Advanced format",
-  goat: "the Goat Control format (TCG, mid-2005 card pool — nothing newer than Cybernetic Revolution)",
+  goat: "the Goat Control format (TCG, April 2005 banlist; card pool up to Dark Beginning 2 / The Lost Millennium — Cybernetic Revolution and anything newer, e.g. Cyber Dragon or the roids, is NOT legal)",
   edison: "the Edison format (TCG, March–April 2010 card pool)",
 };
 
@@ -164,6 +164,7 @@ export async function buildDeckJSON(opts: {
   pinned?: string[]; // must appear
   mutatorLines?: string[]; // extra hard rules, already phrased for the prompt
   current?: { name: string; strategy: string; main: RawDeckEntry[]; extra: RawDeckEntry[]; side: RawDeckEntry[] }; // patch mode
+  fillTo?: number; // patch mode: the Main Deck is short — bring it to exactly this many cards
 }): Promise<BuildOutcome> {
   const fmt = FORMAT_LABEL[opts.format] ?? "the current TCG Advanced format";
   const poolRule =
@@ -188,6 +189,9 @@ export async function buildDeckJSON(opts: {
         `  EXTRA: ${list(opts.current.extra)}`,
         `  SIDE: ${list(opts.current.side)}`,
         "  Remove any banned cards, add any must-include cards, then only swap/fill what is needed to keep the deck legal (40 Main) and coherent. Keep the deck name and strategy unless the change forces a new plan.",
+        ...(opts.fillTo
+          ? [`  The Main Deck above has only ${opts.current.main.reduce((s, e) => s + e.copies, 0)} cards. KEEP every card listed and ADD cards from the pool until the Main Deck has exactly ${opts.fillTo} — pick cards that fit the strategy, and never exceed copy limits or owned counts.`]
+          : []),
         ...(opts.current.strategy ? [`  Current strategy: ${opts.current.strategy}`] : []),
       ]
     : [];
@@ -195,8 +199,9 @@ export async function buildDeckJSON(opts: {
   const system = [
     `You are an expert Yu-Gi-Oh! TCG deck builder. Build ONE coherent, competitively reasonable deck for ${fmt}.`,
     "Hard rules you MUST obey:",
-    "- Main Deck: 40 to 60 cards total (prefer 40 unless the strategy needs more).",
-    "- Extra Deck: 0 to 15 cards total. Side Deck: 0 to 15 cards (may be empty).",
+    "- Main Deck: 40 to 60 cards total (prefer 40 unless the strategy needs more). Count them.",
+    "- Extra Deck: 0 to 15 cards total. Side Deck: 0 to 15 cards total (may be empty). Never more than 15 in either — count them.",
+    "- Copies are counted across Main + Extra + Side together: 3 copies in the Main Deck means 0 in the Side Deck.",
     "- A card may appear at most 3 times total, and never more than its banlist limit for this format (Limited = 1, Semi-Limited = 2). Forbidden cards are not allowed.",
     "- The Extra Deck contains ONLY Fusion, Synchro, Xyz and Link monsters; everything else goes in the Main Deck.",
     "- CRITICAL — every Extra Deck card MUST be summonable with the Main Deck you build:",

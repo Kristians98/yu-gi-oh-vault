@@ -53,6 +53,8 @@ export type BuildConstraints = {
 };
 
 const EXTRA_FRAMES = new Set(["fusion", "synchro", "xyz", "link"]);
+export const GOAT_CUTOFF = "2005-08-06"; // first non-legal TCG release date (Cybernetic Revolution)
+export const DECK_LIMITS = { mainMin: 40, mainMax: 60, extraMax: 15, sideMax: 15 } as const;
 const FORMATS = new Set<DeckFormat>(["advanced", "goat", "edison"]);
 
 export const normalizeFormat = (f: unknown): DeckFormat => (FORMATS.has(f as DeckFormat) ? (f as DeckFormat) : "advanced");
@@ -74,7 +76,9 @@ function banFieldFor(c: CardRow, format: DeckFormat): string | null {
 
 export function isLegal(c: CardRow, format: DeckFormat): boolean {
   if (banFieldFor(c, format) === "Forbidden") return false;
-  if (format === "goat") return !!c.tcgDate && c.tcgDate <= "2005-09-01";
+  // Goat = card pool up to Dark Beginning 2 / The Lost Millennium. Cybernetic Revolution
+  // (TCG 2005-08-06: Cyber Dragon, Drillroid, …) is the first set that is NOT legal.
+  if (format === "goat") return !!c.tcgDate && c.tcgDate < GOAT_CUTOFF;
   if (format === "edison") return !!c.tcgDate && c.tcgDate <= "2010-04-01";
   return true; // advanced = current pool
 }
@@ -435,6 +439,42 @@ function applyConstraints(
   return { main, extra, side };
 }
 
+/** Trim a section from the end until it holds at most `max` cards. */
+function trimTo(entries: ResolvedEntry[], max: number, label: string, warnings: string[]): ResolvedEntry[] {
+  let total = entries.reduce((s, e) => s + e.copies, 0);
+  if (total <= max) return entries;
+  const before = total;
+  const out = entries.map((e) => ({ ...e }));
+  for (let i = out.length - 1; i >= 0 && total > max; i--) {
+    const cut = Math.min(out[i].copies, total - max);
+    out[i].copies -= cut;
+    total -= cut;
+  }
+  warnings.push(`${label} had ${before} cards — trimmed to the ${max} allowed.`);
+  return out.filter((e) => e.copies > 0);
+}
+
+/** A card's copies across Main + Extra + Side may not exceed its limit (3, or the banlist's). */
+function capCopiesAcrossDeck(main: ResolvedEntry[], extra: ResolvedEntry[], side: ResolvedEntry[], byLower: Map<string, CardRow>, format: DeckFormat, warnings: string[]): { main: ResolvedEntry[]; extra: ResolvedEntry[]; side: ResolvedEntry[] } {
+  const used = new Map<string, number>();
+  const cap = (list: ResolvedEntry[]) =>
+    list
+      .map((e) => {
+        const key = e.name.toLowerCase();
+        const c = byLower.get(key);
+        const limit = c ? copyLimit(c, format) : 3;
+        const room = Math.max(0, limit - (used.get(key) ?? 0));
+        const copies = Math.min(e.copies, room);
+        if (copies < e.copies) warnings.push(`"${e.name}" exceeded ${limit} cop${limit === 1 ? "y" : "ies"} across the whole deck — reduced.`);
+        used.set(key, (used.get(key) ?? 0) + copies);
+        return copies === e.copies ? e : { ...e, copies };
+      })
+      .filter((e) => e.copies > 0);
+  // Main first (it matters most), then Extra, then Side gets what is left.
+  const m = cap(main), x = cap(extra), s = cap(side);
+  return { main: m, extra: x, side: s };
+}
+
 /** Resolve names → cards, enforce zones/legality/summonability/constraints, score the pillars. */
 export async function finalizeDeck(raw: RawDeck, format: DeckFormat, poolMode: PoolMode, owned: Map<number, number>, cons: BuildConstraints = {}): Promise<DeckResult> {
   const allNames = [...raw.mainDeck, ...raw.extraDeck, ...raw.sideDeck].map((e) => e.name).concat(cons.pinned ?? []);
@@ -457,6 +497,12 @@ export async function finalizeDeck(raw: RawDeck, format: DeckFormat, poolMode: P
   const caps = analyzeMain(main, byLower);
   main = pruneMainRituals(main, byLower, caps, warnings);
   extra = pruneUnsummonable(extra, byLower, caps, warnings);
+
+  // Hard limits — the model is asked to respect them but must not be trusted to.
+  ({ main, extra, side } = capCopiesAcrossDeck(main, extra, side, byLower, format, warnings));
+  main = trimTo(main, DECK_LIMITS.mainMax, "Main Deck", warnings);
+  extra = trimTo(extra, DECK_LIMITS.extraMax, "Extra Deck", warnings);
+  side = trimTo(side, DECK_LIMITS.sideMax, "Side Deck", warnings);
   const pillars = computePillars(main, side, byLower);
 
   const counts = {
@@ -464,9 +510,7 @@ export async function finalizeDeck(raw: RawDeck, format: DeckFormat, poolMode: P
     extra: extra.reduce((s, e) => s + e.copies, 0),
     side: side.reduce((s, e) => s + e.copies, 0),
   };
-  if (counts.main < 40) warnings.push(`Main Deck has ${counts.main} cards (minimum is 40).`);
-  if (counts.main > 60) warnings.push(`Main Deck has ${counts.main} cards (maximum is 60).`);
-  if (counts.extra > 15) warnings.push(`Extra Deck has ${counts.extra} cards (maximum is 15).`);
+  if (counts.main < DECK_LIMITS.mainMin) warnings.push(`Main Deck has ${counts.main} cards (minimum is ${DECK_LIMITS.mainMin}).`);
 
   return { ok: true, deckName: raw.deckName, strategy: raw.strategy, format, poolMode, main, extra, side, counts, warnings, pillars };
 }
@@ -474,7 +518,7 @@ export async function finalizeDeck(raw: RawDeck, format: DeckFormat, poolMode: P
 /** Build (but don't save) a deck for `userId`. Returns a render-ready result with warnings. */
 export async function buildDeckForUser(
   userId: string,
-  input: { format: DeckFormat; strategy: string; poolMode: PoolMode; constraints?: BuildConstraints; thinking?: Thinking },
+  input: { format: DeckFormat; strategy: string; poolMode: PoolMode; constraints?: BuildConstraints; thinking?: Thinking; skipFill?: boolean },
 ): Promise<DeckResult> {
   const format = normalizeFormat(input.format);
   const poolMode = normalizePoolMode(input.poolMode);
@@ -511,7 +555,39 @@ export async function buildDeckForUser(
   });
   if (!out.deck) return emptyResult(format, poolMode, out.error);
 
-  const result = await finalizeDeck(out.deck, format, poolMode, owned, cons);
+  let result = await finalizeDeck(out.deck, format, poolMode, owned, cons);
   if (out.note) result.warnings.unshift(out.note);
+
+  // Validation can leave the Main Deck short (illegal / unowned / banned cards removed, or
+  // the model simply miscounted). One more call in patch mode asks for exactly the missing
+  // cards from the pool; if it still comes back short the warning stays visible.
+  if (result.counts.main < DECK_LIMITS.mainMin && !input.skipFill) {
+    const fill = await buildDeckJSON({
+      format,
+      strategy: input.strategy ?? "",
+      poolMode,
+      poolList,
+      thinking: input.thinking,
+      banned: cons.banned,
+      pinned: cons.pinned,
+      mutatorLines: (cons.mutators ?? []).map((m) => MUTATORS[m]?.prompt).filter(Boolean) as string[],
+      current: {
+        name: result.deckName,
+        strategy: result.strategy,
+        main: result.main.map((e) => ({ name: e.name, copies: e.copies })),
+        extra: result.extra.map((e) => ({ name: e.name, copies: e.copies })),
+        side: result.side.map((e) => ({ name: e.name, copies: e.copies })),
+      },
+      fillTo: DECK_LIMITS.mainMin,
+    });
+    if (fill.deck) {
+      const refilled = await finalizeDeck(fill.deck, format, poolMode, owned, cons);
+      if (refilled.counts.main > result.counts.main) {
+        refilled.warnings.unshift(`Main Deck came back with ${result.counts.main} cards — topped up to ${refilled.counts.main}.`);
+        if (out.note) refilled.warnings.unshift(out.note);
+        result = refilled;
+      }
+    }
+  }
   return result;
 }
