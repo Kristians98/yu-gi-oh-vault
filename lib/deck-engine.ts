@@ -457,7 +457,7 @@ export async function buildDeckForUser(
     poolList = poolListText(pool, format);
   }
 
-  const raw = await buildDeckJSON({
+  const out = await buildDeckJSON({
     format,
     strategy: input.strategy ?? "",
     poolMode,
@@ -475,7 +475,7 @@ export async function buildDeckForUser(
         }
       : undefined,
   });
-  if (!raw) return emptyResult(format, poolMode, "The deck builder didn't return a deck. Check the AI config (AZURE_AI_*) and try again.");
+  if (!out.deck) return emptyResult(format, poolMode, out.error);
 
-  return finalizeDeck(raw, format, poolMode, owned, cons);
+  return finalizeDeck(out.deck, format, poolMode, owned, cons);
 }

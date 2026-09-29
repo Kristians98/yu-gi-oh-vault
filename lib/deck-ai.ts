@@ -32,6 +32,7 @@ function extractFirstJson(text: string): string | null {
 }
 
 export type RawDeckEntry = { name: string; copies: number };
+export type BuildOutcome = { deck: RawDeck } | { deck: null; error: string };
 export type RawDeck = {
   deckName: string;
   strategy: string;
@@ -57,8 +58,8 @@ export async function buildDeckJSON(opts: {
   pinned?: string[]; // must appear
   mutatorLines?: string[]; // extra hard rules, already phrased for the prompt
   current?: { name: string; strategy: string; main: RawDeckEntry[]; extra: RawDeckEntry[]; side: RawDeckEntry[] }; // patch mode
-}): Promise<RawDeck | null> {
-  if (!deckAiConfigured()) return null;
+}): Promise<BuildOutcome> {
+  if (!deckAiConfigured()) return { deck: null, error: "AI isn't configured (AZURE_AI_ENDPOINT / AZURE_AI_KEY / deployment)." };
 
   const fmt = FORMAT_LABEL[opts.format] ?? "the current TCG Advanced format";
   const poolRule =
@@ -134,20 +135,51 @@ export async function buildDeckJSON(opts: {
     ],
   };
 
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "api-key": KEY as string },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) {
-      console.error("Azure deck HTTP", res.status, (await res.text().catch(() => "")).slice(0, 300));
-      return null;
+  // Azure can answer 429 (tokens-per-minute quota — e.g. two duelists drawing at once) or a
+  // transient 5xx. Retry those a couple of times, honouring Retry-After, while staying inside
+  // the 60s the page allows.
+  const startedAt = Date.now();
+  let res: Response | null = null;
+  let lastErr = "";
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "api-key": KEY as string },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(50_000),
+      });
+    } catch (e) {
+      lastErr = e instanceof Error && e.name === "TimeoutError" ? "the model took longer than 50s" : `network error (${e instanceof Error ? e.message : String(e)})`;
+      console.error("Azure deck fetch failed", e);
+      res = null;
     }
+    if (res?.ok) break;
+    if (res) {
+      const text = (await res.text().catch(() => "")).slice(0, 300);
+      console.error("Azure deck HTTP", res.status, text);
+      const retryable = res.status === 429 || res.status >= 500;
+      lastErr = res.status === 429 ? "Azure rate limit (429) — the deployment's tokens-per-minute quota is used up" : `Azure returned HTTP ${res.status}${text ? ` — ${text.replace(/\s+/g, " ").slice(0, 140)}` : ""}`;
+      if (!retryable) return { deck: null, error: lastErr };
+      const after = Number(res.headers.get("retry-after"));
+      const wait = Math.min(15_000, (Number.isFinite(after) && after > 0 ? after * 1000 : 4000 * (attempt + 1)));
+      if (Date.now() - startedAt + wait > 30_000) break; // no room left for another full attempt
+      await new Promise((r) => setTimeout(r, wait));
+      res = null;
+      continue;
+    }
+    break; // network/timeout error: don't stack another 50s wait
+  }
+  if (!res?.ok) return { deck: null, error: `The deck builder failed: ${lastErr || "no response"}. Try again in a minute.` };
+
+  try {
     const json = await res.json();
     const text: string = json?.choices?.[0]?.message?.content ?? "";
     const jsonStr = extractFirstJson(text);
-    if (!jsonStr) return null;
+    if (!jsonStr) {
+      console.error("Azure deck: no JSON in reply", text.slice(0, 300));
+      return { deck: null, error: "The model replied without a deck (no JSON). Try again." };
+    }
     const parsed = JSON.parse(jsonStr) as Partial<RawDeck>;
     const clean = (arr: unknown): RawDeckEntry[] =>
       Array.isArray(arr)
@@ -156,15 +188,17 @@ export async function buildDeckJSON(opts: {
             .filter((e) => e.name)
         : [];
     return {
-      deckName: String(parsed.deckName ?? "Untitled Deck").trim().slice(0, 80) || "Untitled Deck",
-      strategy: String(parsed.strategy ?? "").trim().slice(0, 800),
-      mainDeck: clean(parsed.mainDeck),
-      extraDeck: clean(parsed.extraDeck),
-      sideDeck: clean(parsed.sideDeck),
+      deck: {
+        deckName: String(parsed.deckName ?? "Untitled Deck").trim().slice(0, 80) || "Untitled Deck",
+        strategy: String(parsed.strategy ?? "").trim().slice(0, 800),
+        mainDeck: clean(parsed.mainDeck),
+        extraDeck: clean(parsed.extraDeck),
+        sideDeck: clean(parsed.sideDeck),
+      },
     };
   } catch (e) {
     console.error("Azure deck build failed", e);
-    return null;
+    return { deck: null, error: `The model's reply couldn't be read (${e instanceof Error ? e.message : "parse error"}). Try again.` };
   }
 }
 
