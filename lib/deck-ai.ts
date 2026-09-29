@@ -9,20 +9,23 @@ const DEPLOYMENT = process.env.AZURE_AI_DECK_DEPLOYMENT || process.env.AZURE_AI_
 const API_VERSION = process.env.AZURE_AI_API_VERSION || "2024-05-01-preview";
 const FALLBACK = process.env.AZURE_AI_DEPLOYMENT; // scanner model — used only if the deck deployment fails
 const BUDGET_MS = 55_000; // pages that call this export maxDuration = 60
-const ATTEMPT_MS = 40_000;
+const ATTEMPT_MS = 45_000;
 
 export function deckAiConfigured(): boolean {
   return Boolean(ENDPOINT && KEY && DEPLOYMENT);
 }
 
-/** `reasoning_effort` to send for a deployment: env override, else "low" for GPT-5 / o-series,
- *  else nothing (gpt-4o and friends reject the parameter). */
-export function reasoningEffortFor(deployment: string | undefined): string | null {
+/** `reasoning_effort` candidates for a deployment, best first. Deployments differ in what
+ *  they accept (gpt-5.6 knows none|low|medium|high|xhigh, gpt-5.4 minimal|low|…), so the
+ *  caller walks this list on a 400 and finally sends no parameter at all. Deck building
+ *  needs no visible reasoning: "none" answers in ~6s where "low" took ~50s on gpt-5.6.
+ *  AZURE_AI_DECK_REASONING pins one value ("off" sends nothing). */
+export function reasoningCandidates(deployment: string | undefined): string[] {
   const env = (process.env.AZURE_AI_DECK_REASONING || "").trim().toLowerCase();
-  if (env === "off" || env === "none") return null;
-  if (["minimal", "low", "medium", "high"].includes(env)) return env;
+  if (env === "off") return [];
+  if (env) return [env];
   const d = (deployment || "").toLowerCase();
-  return /gpt-(?:[5-9]|\d{2})|^o\d/.test(d) ? "low" : null;
+  return /gpt-(?:[5-9]|\d{2})|^o\d/.test(d) ? ["none", "minimal", "low"] : [];
 }
 
 // Pull the first balanced {...} object out of a model reply (it may wrap JSON in
@@ -157,10 +160,10 @@ export async function buildDeckJSON(opts: {
     // default temperature, so we omit temperature. Generous cap leaves room for reasoning
     // tokens before the deck JSON. gpt-4o-mini accepts this shape too.
     const body: Record<string, unknown> = { model: deployment, max_completion_tokens: 8000, messages };
-    // Reasoning models: a 600-card pool + a 40-card answer at default effort can run long
-    // enough for Azure to give up with a 500. Low effort is plenty here and ~3x faster.
-    // AZURE_AI_DECK_REASONING overrides (minimal|low|medium|high, or "off").
-    let reasoning = reasoningEffortFor(deployment);
+    // Reasoning models at default effort spend ~4k reasoning tokens (~50s) on a deck; that
+    // blows the 60s page budget and Azure sometimes gives up with a 500. See reasoningCandidates.
+    const efforts = reasoningCandidates(deployment);
+    let reasoning: string | null = efforts.shift() ?? null;
     for (let attempt = 0; attempt < (isFallback ? 1 : 2); attempt++) {
       if (reasoning) body.reasoning_effort = reasoning; else delete body.reasoning_effort;
       const headers: Record<string, string> = { "Content-Type": "application/json", "api-key": KEY as string };
@@ -180,9 +183,10 @@ export async function buildDeckJSON(opts: {
       if (res.ok) { used = deployment; break outer; }
       const text = (await res.text().catch(() => "")).slice(0, 300);
       console.error("Azure deck HTTP", deployment, res.status, text);
-      // A deployment that doesn't know `reasoning_effort` answers 400 — drop it and go again.
+      // A deployment that doesn't accept this `reasoning_effort` answers 400 — try the next
+      // candidate (and finally no parameter) without spending an attempt.
       if (res.status === 400 && reasoning && /reasoning_effort|extra.parameters/i.test(text)) {
-        reasoning = null;
+        reasoning = efforts.shift() ?? null;
         attempt--; // this one didn't count
         continue;
       }
