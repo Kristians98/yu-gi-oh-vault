@@ -7,6 +7,9 @@ const ENDPOINT = process.env.AZURE_AI_ENDPOINT?.replace(/\/$/, "");
 const KEY = process.env.AZURE_AI_KEY;
 const DEPLOYMENT = process.env.AZURE_AI_DECK_DEPLOYMENT || process.env.AZURE_AI_DEPLOYMENT;
 const API_VERSION = process.env.AZURE_AI_API_VERSION || "2024-05-01-preview";
+const FALLBACK = process.env.AZURE_AI_DEPLOYMENT; // scanner model — used only if the deck deployment fails
+const BUDGET_MS = 55_000; // pages that call this export maxDuration = 60
+const ATTEMPT_MS = 40_000;
 
 export function deckAiConfigured(): boolean {
   return Boolean(ENDPOINT && KEY && DEPLOYMENT);
@@ -42,7 +45,7 @@ function extractFirstJson(text: string): string | null {
 }
 
 export type RawDeckEntry = { name: string; copies: number };
-export type BuildOutcome = { deck: RawDeck } | { deck: null; error: string };
+export type BuildOutcome = { deck: RawDeck; note?: string } | { deck: null; error: string };
 export type RawDeck = {
   deckName: string;
   strategy: string;
@@ -133,68 +136,68 @@ export async function buildDeckJSON(opts: {
       : `Build the deck now for ${fmt}.`;
 
   const url = `${ENDPOINT}/models/chat/completions?api-version=${API_VERSION}`;
-  const body: Record<string, unknown> = {
-    model: DEPLOYMENT,
-    // GPT-5 / o-series reject `max_tokens` (use `max_completion_tokens`) and only allow
-    // the default temperature, so we omit temperature. Generous cap leaves room for the
-    // model's reasoning tokens before the deck JSON. gpt-4o-mini also accepts this shape.
-    max_completion_tokens: 8000,
-    messages: [
-      { role: "system", content: system },
-      { role: "user", content: user },
-    ],
-  };
-  // Reasoning models: a 600-card pool + a 40-card answer at default effort can run long enough
-  // for Azure to give up with a 500. Low effort is plenty for deck building and ~3x faster.
-  // AZURE_AI_DECK_REASONING overrides (minimal|low|medium|high, or "off" to send nothing).
-  const reasoning = reasoningEffortFor(DEPLOYMENT);
-  if (reasoning) body.reasoning_effort = reasoning;
+  const messages = [
+    { role: "system", content: system },
+    { role: "user", content: user },
+  ];
 
-  // Azure can answer 429 (tokens-per-minute quota — e.g. two duelists drawing at once) or a
-  // transient 5xx. Retry those a couple of times, honouring Retry-After, while staying inside
-  // the 60s the page allows.
+  // Deployments to try, in order: the deck deployment, then (if different) the scanner's
+  // deployment as a fallback so a duel can still start when gpt-5.4 is having a bad day.
+  const chain = [DEPLOYMENT, FALLBACK].filter((d, i, arr): d is string => !!d && arr.indexOf(d) === i);
   const startedAt = Date.now();
+  const elapsed = () => Date.now() - startedAt;
   let res: Response | null = null;
+  let used = "";
   let lastErr = "";
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
+
+  outer: for (const [di, deployment] of chain.entries()) {
+    const isFallback = di > 0;
+    if (isFallback && elapsed() > BUDGET_MS - 14_000) break; // not enough time left for another call
+    // GPT-5 / o-series reject `max_tokens` (use `max_completion_tokens`) and only allow the
+    // default temperature, so we omit temperature. Generous cap leaves room for reasoning
+    // tokens before the deck JSON. gpt-4o-mini accepts this shape too.
+    const body: Record<string, unknown> = { model: deployment, max_completion_tokens: 8000, messages };
+    // Reasoning models: a 600-card pool + a 40-card answer at default effort can run long
+    // enough for Azure to give up with a 500. Low effort is plenty here and ~3x faster.
+    // AZURE_AI_DECK_REASONING overrides (minimal|low|medium|high, or "off").
+    let reasoning = reasoningEffortFor(deployment);
+    for (let attempt = 0; attempt < (isFallback ? 1 : 2); attempt++) {
+      if (reasoning) body.reasoning_effort = reasoning; else delete body.reasoning_effort;
+      const headers: Record<string, string> = { "Content-Type": "application/json", "api-key": KEY as string };
+      // The Azure AI inference route only forwards non-standard params (reasoning_effort) with this header.
+      if (reasoning) headers["extra-parameters"] = "pass-through";
       const payload = JSON.stringify(body);
-      if (attempt === 0) console.info("Azure deck request", { deployment: DEPLOYMENT, reasoning: body.reasoning_effort ?? null, chars: payload.length });
-      res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "api-key": KEY as string },
-        body: payload,
-        signal: AbortSignal.timeout(50_000),
-      });
-    } catch (e) {
-      lastErr = e instanceof Error && e.name === "TimeoutError" ? "the model took longer than 50s" : `network error (${e instanceof Error ? e.message : String(e)})`;
-      console.error("Azure deck fetch failed", e);
-      res = null;
-    }
-    if (res?.ok) break;
-    if (res) {
-      const text = (await res.text().catch(() => "")).slice(0, 300);
-      console.error("Azure deck HTTP", res.status, text);
-      // A deployment that doesn't know `reasoning_effort` answers 400 — drop it and go again.
-      if (res.status === 400 && body.reasoning_effort && /reasoning_effort/i.test(text)) {
-        delete body.reasoning_effort;
+      const timeout = Math.max(10_000, Math.min(ATTEMPT_MS, BUDGET_MS - elapsed()));
+      console.info("Azure deck request", { deployment, reasoning: reasoning ?? null, chars: payload.length, attempt, timeout });
+      try {
+        res = await fetch(url, { method: "POST", headers, body: payload, signal: AbortSignal.timeout(timeout) });
+      } catch (e) {
+        lastErr = e instanceof Error && e.name === "TimeoutError" ? `${deployment} took longer than ${Math.round(timeout / 1000)}s` : `network error (${e instanceof Error ? e.message : String(e)})`;
+        console.error("Azure deck fetch failed", deployment, e);
         res = null;
+        continue outer; // don't stack another long wait on this deployment
+      }
+      if (res.ok) { used = deployment; break outer; }
+      const text = (await res.text().catch(() => "")).slice(0, 300);
+      console.error("Azure deck HTTP", deployment, res.status, text);
+      // A deployment that doesn't know `reasoning_effort` answers 400 — drop it and go again.
+      if (res.status === 400 && reasoning && /reasoning_effort|extra.parameters/i.test(text)) {
+        reasoning = null;
+        attempt--; // this one didn't count
         continue;
       }
       const retryable = res.status === 429 || res.status >= 500;
-      lastErr = res.status === 429 ? "Azure rate limit (429) — the deployment's tokens-per-minute quota is used up" : `Azure returned HTTP ${res.status}${text ? ` — ${text.replace(/\s+/g, " ").slice(0, 140)}` : ""}`;
+      lastErr = res.status === 429
+        ? `${deployment}: Azure rate limit (429) — tokens-per-minute quota used up`
+        : `${deployment}: Azure returned HTTP ${res.status}${text ? ` — ${text.replace(/\s+/g, " ").slice(0, 140)}` : ""}`;
       if (!retryable) return { deck: null, error: lastErr };
       const after = Number(res.headers.get("retry-after"));
-      // 5xx: Azure's transient errors usually clear within seconds; give them a real pause.
-      const wait = Math.min(15_000, Number.isFinite(after) && after > 0 ? after * 1000 : res.status === 429 ? 4000 * (attempt + 1) : 6000 * (attempt + 1));
-      if (Date.now() - startedAt + wait > 32_000) break; // no room left for another full attempt
-      await new Promise((r) => setTimeout(r, wait));
-      res = null;
-      continue;
+      const wait = Math.min(12_000, Number.isFinite(after) && after > 0 ? after * 1000 : res.status === 429 ? 4000 : 6000);
+      if (attempt < 1 && elapsed() + wait < BUDGET_MS - 20_000) await new Promise((r) => setTimeout(r, wait));
     }
-    break; // network/timeout error: don't stack another 50s wait
   }
-  if (!res?.ok) return { deck: null, error: `The deck builder failed: ${lastErr || "no response"}. Try again in a minute.` };
+  if (!res?.ok || !used) return { deck: null, error: `The deck builder failed: ${lastErr || "no response"}. Try again in a minute.` };
+  const note = used !== chain[0] ? `Built with the fallback model (${used}) — ${chain[0]} was unavailable: ${lastErr}` : undefined;
 
   try {
     const json = await res.json();
@@ -212,6 +215,7 @@ export async function buildDeckJSON(opts: {
             .filter((e) => e.name)
         : [];
     return {
+      note,
       deck: {
         deckName: String(parsed.deckName ?? "Untitled Deck").trim().slice(0, 80) || "Untitled Deck",
         strategy: String(parsed.strategy ?? "").trim().slice(0, 800),

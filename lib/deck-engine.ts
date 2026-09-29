@@ -477,5 +477,7 @@ export async function buildDeckForUser(
   });
   if (!out.deck) return emptyResult(format, poolMode, out.error);
 
-  return finalizeDeck(out.deck, format, poolMode, owned, cons);
+  const result = await finalizeDeck(out.deck, format, poolMode, owned, cons);
+  if (out.note) result.warnings.unshift(out.note);
+  return result;
 }
